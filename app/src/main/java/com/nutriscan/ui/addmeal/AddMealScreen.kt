@@ -1,0 +1,634 @@
+package com.nutriscan.ui.addmeal
+
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.util.Log
+import androidx.camera.core.CameraSelector
+import androidx.camera.core.ImageCapture
+import androidx.camera.core.Preview
+import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.camera.view.PreviewView
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.content.ContextCompat
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.nutriscan.data.local.entity.FoodItem
+import com.nutriscan.domain.model.PortionPreset
+import java.util.concurrent.Executors
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AddMealScreen(
+    onMealLogged: () -> Unit,
+    onBack: () -> Unit,
+    viewModel: AddMealViewModel = hiltViewModel()
+) {
+    val uiState by viewModel.uiState.collectAsState()
+    
+    // Handle meal logged
+    LaunchedEffect(uiState.mealLogged) {
+        if (uiState.mealLogged) {
+            onMealLogged()
+            viewModel.resetState()
+        }
+    }
+    
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Add Meal") },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Default.ArrowBack, "Back")
+                    }
+                }
+            )
+        }
+    ) { padding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+        ) {
+            when {
+                uiState.showConfirmation && uiState.selectedFood != null -> {
+                    ConfirmationSheet(
+                        food = uiState.selectedFood!!,
+                        mlLabel = uiState.mlLabel,
+                        portionGrams = uiState.portionGrams,
+                        nutrition = uiState.calculatedNutrition,
+                        isLogging = uiState.isLogging,
+                        onPortionChange = { viewModel.setPortionGrams(it) },
+                        onPresetSelect = { viewModel.setPortionPreset(it) },
+                        onConfirm = { viewModel.confirmMeal() },
+                        onCancel = { viewModel.resetState() }
+                    )
+                }
+                uiState.showManualSearch -> {
+                    ManualSearchScreen(
+                        viewModel = viewModel,
+                        onFoodSelected = { viewModel.selectFood(it) },
+                        onCancel = { viewModel.resetState() }
+                    )
+                }
+                else -> {
+                    SampleImagePicker(
+                        isClassifying = uiState.isClassifying,
+                        error = uiState.error,
+                        onFoodNameSelected = { foodName -> viewModel.selectFoodByName(foodName) },
+                        onManualSearch = { viewModel.showManualSearch() }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun CameraCapture(
+    isClassifying: Boolean,
+    error: String?,
+    onImageCaptured: (Bitmap) -> Unit,
+    onManualSearch: () -> Unit
+) {
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    
+    var previewView by remember { mutableStateOf<PreviewView?>(null) }
+    var imageCapture by remember { mutableStateOf<ImageCapture?>(null) }
+    val executor = remember { Executors.newSingleThreadExecutor() }
+    
+    // Setup camera
+    LaunchedEffect(previewView) {
+        previewView?.let { preview ->
+            val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
+            cameraProviderFuture.addListener({
+                val cameraProvider = cameraProviderFuture.get()
+                
+                val previewUseCase = Preview.Builder().build().also {
+                    it.setSurfaceProvider(preview.surfaceProvider)
+                }
+                
+                imageCapture = ImageCapture.Builder()
+                    .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
+                    .build()
+                
+                try {
+                    cameraProvider.unbindAll()
+                    cameraProvider.bindToLifecycle(
+                        lifecycleOwner,
+                        CameraSelector.DEFAULT_BACK_CAMERA,
+                        previewUseCase,
+                        imageCapture
+                    )
+                } catch (e: Exception) {
+                    Log.e("Camera", "Camera binding failed", e)
+                }
+            }, ContextCompat.getMainExecutor(context))
+        }
+    }
+    
+    Box(modifier = Modifier.fillMaxSize()) {
+        // Camera Preview
+        AndroidView(
+            factory = { ctx ->
+                PreviewView(ctx).also { previewView = it }
+            },
+            modifier = Modifier.fillMaxSize()
+        )
+        
+        // Overlay UI
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            // Top section - instructions
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = Color.Black.copy(alpha = 0.6f)
+                )
+            ) {
+                Text(
+                    "Point camera at your food",
+                    modifier = Modifier.padding(12.dp),
+                    color = Color.White
+                )
+            }
+            
+            // Bottom section - capture button
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                error?.let {
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.errorContainer
+                        )
+                    ) {
+                        Text(
+                            it,
+                            modifier = Modifier.padding(12.dp),
+                            color = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Manual search button
+                    OutlinedButton(onClick = onManualSearch) {
+                        Icon(Icons.Default.Search, null)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Search")
+                    }
+                    
+                    // Capture button
+                    FloatingActionButton(
+                        onClick = {
+                            previewView?.bitmap?.let { bitmap ->
+                                onImageCaptured(bitmap)
+                            }
+                        },
+                        modifier = Modifier.size(72.dp),
+                        containerColor = MaterialTheme.colorScheme.primary
+                    ) {
+                        if (isClassifying) {
+                            CircularProgressIndicator(
+                                color = Color.White,
+                                modifier = Modifier.size(32.dp)
+                            )
+                        } else {
+                            Icon(
+                                Icons.Default.CameraAlt,
+                                contentDescription = "Capture",
+                                modifier = Modifier.size(32.dp)
+                            )
+                        }
+                    }
+                    
+                    // Placeholder for symmetry
+                    Spacer(modifier = Modifier.width(100.dp))
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ConfirmationSheet(
+    food: FoodItem,
+    mlLabel: String?,
+    portionGrams: Int,
+    nutrition: com.nutriscan.domain.model.NutritionResult,
+    isLogging: Boolean,
+    onPortionChange: (Int) -> Unit,
+    onPresetSelect: (PortionPreset) -> Unit,
+    onConfirm: () -> Unit,
+    onCancel: () -> Unit
+) {
+    var customGrams by remember { mutableStateOf(portionGrams.toString()) }
+    
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        // Header
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.primaryContainer
+            )
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                if (mlLabel != null) {
+                    Text(
+                        "Detected: $mlLabel",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                    )
+                }
+                Text(
+                    food.name.replaceFirstChar { it.uppercase() },
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+        
+        // Portion Presets
+        Text("Select Portion Size", fontWeight = FontWeight.Medium)
+        LazyRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            items(PortionPreset.entries) { preset ->
+                FilterChip(
+                    selected = portionGrams == preset.grams,
+                    onClick = { onPresetSelect(preset) },
+                    label = { Text(preset.displayName) }
+                )
+            }
+        }
+        
+        // Custom grams input
+        OutlinedTextField(
+            value = customGrams,
+            onValueChange = { 
+                customGrams = it
+                it.toIntOrNull()?.let { grams -> onPortionChange(grams) }
+            },
+            label = { Text("Custom (grams)") },
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Number,
+                imeAction = ImeAction.Done
+            ),
+            modifier = Modifier.fillMaxWidth()
+        )
+        
+        // Nutrition Summary
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    "Nutrition for ${portionGrams}g",
+                    style = MaterialTheme.typography.titleMedium
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    NutrientColumn("Calories", "${nutrition.kcal}", "kcal")
+                    NutrientColumn("Protein", "%.1f".format(nutrition.protein), "g")
+                    NutrientColumn("Carbs", "%.1f".format(nutrition.carbs), "g")
+                    NutrientColumn("Fat", "%.1f".format(nutrition.fat), "g")
+                }
+            }
+        }
+        
+        Spacer(modifier = Modifier.weight(1f))
+        
+        // Action buttons
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            OutlinedButton(
+                onClick = onCancel,
+                modifier = Modifier.weight(1f)
+            ) {
+                Text("Cancel")
+            }
+            
+            Button(
+                onClick = onConfirm,
+                modifier = Modifier.weight(1f),
+                enabled = !isLogging
+            ) {
+                if (isLogging) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    Icon(Icons.Default.Check, null)
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Log Meal")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun NutrientColumn(label: String, value: String, unit: String) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            value,
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold
+        )
+        Text(
+            "$label ($unit)",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ManualSearchScreen(
+    viewModel: AddMealViewModel,
+    onFoodSelected: (FoodItem) -> Unit,
+    onCancel: () -> Unit
+) {
+    var searchQuery by remember { mutableStateOf("") }
+    val searchResults by viewModel.searchFoods(searchQuery).collectAsState(initial = emptyList())
+    
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+    ) {
+        // Search bar
+        OutlinedTextField(
+            value = searchQuery,
+            onValueChange = { searchQuery = it },
+            label = { Text("Search foods...") },
+            leadingIcon = { Icon(Icons.Default.Search, null) },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true
+        )
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        // Results
+        LazyColumn(
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            items(searchResults) { food ->
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onFoodSelected(food) }
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                food.name.replaceFirstChar { it.uppercase() },
+                                fontWeight = FontWeight.Medium
+                            )
+                            Text(
+                                "${food.kcalPer100g} kcal/100g",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Icon(Icons.Default.ChevronRight, null)
+                    }
+                }
+            }
+        }
+        
+        Spacer(modifier = Modifier.weight(1f))
+        
+        OutlinedButton(
+            onClick = onCancel,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Cancel")
+        }
+    }
+}
+
+/**
+ * Data class for sample food images
+ */
+data class SampleFoodImage(
+    val assetPath: String,
+    val displayName: String,
+    val foodName: String  // Must match a name in database
+)
+
+/**
+ * Grid of sample food images for testing without camera.
+ */
+@Composable
+fun SampleImagePicker(
+    isClassifying: Boolean,
+    error: String?,
+    onFoodNameSelected: (String) -> Unit,
+    onManualSearch: () -> Unit
+) {
+    val context = LocalContext.current
+    
+    val sampleImages = remember {
+        listOf(
+            SampleFoodImage("sample_images/banana.png", "Banana", "banana"),
+            SampleFoodImage("sample_images/apple.png", "Apple", "apple"),
+            SampleFoodImage("sample_images/pizza.png", "Pizza", "pizza"),
+            SampleFoodImage("sample_images/hamburger.png", "Hamburger", "hamburger")
+        )
+    }
+    
+    // Load bitmaps from assets
+    val bitmaps = remember(sampleImages) {
+        sampleImages.associate { sample ->
+            sample.assetPath to try {
+                context.assets.open(sample.assetPath).use { inputStream ->
+                    BitmapFactory.decodeStream(inputStream)
+                }
+            } catch (e: Exception) {
+                Log.e("SampleImagePicker", "Failed to load ${sample.assetPath}", e)
+                null
+            }
+        }
+    }
+    
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+    ) {
+        // Header
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.primaryContainer
+            )
+        ) {
+            Text(
+                "Select a sample food image",
+                modifier = Modifier.padding(16.dp),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Medium
+            )
+        }
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        // Error message if any
+        error?.let {
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.errorContainer
+                )
+            ) {
+                Text(
+                    it,
+                    modifier = Modifier.padding(12.dp),
+                    color = MaterialTheme.colorScheme.onErrorContainer
+                )
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+        
+        // Loading indicator
+        if (isClassifying) {
+            Box(
+                modifier = Modifier.fillMaxWidth(),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    CircularProgressIndicator()
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("Analyzing food...")
+                }
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+        
+        // Sample images grid
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(2),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.weight(1f)
+        ) {
+            items(sampleImages) { sample ->
+                val bitmap = bitmaps[sample.assetPath]
+                
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(1f)
+                        .clickable(enabled = !isClassifying && bitmap != null) {
+                            onFoodNameSelected(sample.foodName)
+                        },
+                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                ) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (bitmap != null) {
+                            Image(
+                                bitmap = bitmap.asImageBitmap(),
+                                contentDescription = sample.displayName,
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .clip(RoundedCornerShape(12.dp)),
+                                contentScale = ContentScale.Crop
+                            )
+                            // Label overlay
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .align(Alignment.BottomCenter)
+                                    .background(Color.Black.copy(alpha = 0.6f))
+                                    .padding(8.dp)
+                            ) {
+                                Text(
+                                    sample.displayName,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Medium,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        } else {
+                            Text("Failed to load")
+                        }
+                    }
+                }
+            }
+        }
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        // Manual search button
+        OutlinedButton(
+            onClick = onManualSearch,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Icon(Icons.Default.Search, null)
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Search Manually")
+        }
+    }
+}
