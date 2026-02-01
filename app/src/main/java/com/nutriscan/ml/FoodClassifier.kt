@@ -2,6 +2,7 @@ package com.nutriscan.ml
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.util.Log
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.label.ImageLabeler
 import com.google.mlkit.vision.label.ImageLabeling
@@ -14,28 +15,105 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
 /**
- * Wrapper for ML Kit Image Labeling.
- * Provides suspend functions for coroutine integration.
+ * ML Kit-based food classifier with vocabulary filtering.
+ * 
+ * ⚠️ TEMPORARY IMPLEMENTATION
+ * 
+ * This uses generic ML Kit Image Labeling which is NOT food-specific.
+ * The FoodVocabulary filter is a safety layer, not a solution.
+ * 
+ * For production: Replace with TFLiteFoodClassifier using a food-trained model.
+ * 
+ * @see FoodClassificationService
+ * @see TFLiteFoodClassifier (to be implemented)
  */
 @Singleton
-class FoodClassifier @Inject constructor(
+class MLKitFoodClassifier @Inject constructor(
     @ApplicationContext private val context: Context
-) {
+) : FoodClassificationService {
+    
+    companion object {
+        private const val TAG = "MLKitFoodClassifier"
+        
+        // Very low threshold to capture all labels, then filter
+        private const val ML_KIT_THRESHOLD = 0.3f
+        
+        // Minimum food confidence to consider
+        private const val FOOD_MIN_THRESHOLD = 0.5f
+        
+        // EXTREMELY conservative - only auto-select if very confident
+        private const val HIGH_CONFIDENCE_THRESHOLD = 0.85f
+    }
+    
+    override val classifierName = "ML Kit + FoodVocabulary Filter"
+    
+    // ML Kit is NOT food-trained
+    override val isFoodTrained = false
     
     private val labeler: ImageLabeler by lazy {
         val options = ImageLabelerOptions.Builder()
-            .setConfidenceThreshold(0.5f)
+            .setConfidenceThreshold(ML_KIT_THRESHOLD)
             .build()
         ImageLabeling.getClient(options)
     }
     
     /**
-     * Classify a bitmap image and return top labels.
-     * @param bitmap The captured image.
-     * @param maxResults Maximum number of results to return.
-     * @return List of ClassificationResult sorted by confidence.
+     * Classify image and return ONLY food-related labels.
+     * Non-food labels are filtered out. If none remain, returns NO_FOOD_DETECTED.
      */
-    suspend fun classify(bitmap: Bitmap, maxResults: Int = 5): List<ClassificationResult> {
+    override suspend fun classifyFood(bitmap: Bitmap): FoodClassificationResult {
+        return try {
+            val rawResults = classifyRaw(bitmap, maxResults = 10)
+            
+            Log.d(TAG, "Raw ML labels: ${rawResults.map { "${it.label}(${it.confidencePercent}%)" }}")
+            
+            // Filter to food-only using vocabulary (temporary safety layer)
+            val foodResults = FoodVocabulary.filterFoodOnly(rawResults)
+                .filter { it.confidence >= FOOD_MIN_THRESHOLD }
+                .take(5)
+            
+            Log.d(TAG, "Food-filtered: ${foodResults.map { "${it.label}(${it.confidencePercent}%)" }}")
+            
+            when {
+                foodResults.isEmpty() -> {
+                    // No food labels found - critical, trigger manual search
+                    FoodClassificationResult.noFood(rawResults.map { it.label })
+                }
+                foodResults.first().confidence >= HIGH_CONFIDENCE_THRESHOLD -> {
+                    // Very high confidence - can consider auto-select
+                    FoodClassificationResult(
+                        results = foodResults,
+                        status = ClassificationStatus.HIGH_CONFIDENCE,
+                        rawLabels = rawResults.map { it.label }
+                    )
+                }
+                foodResults.size == 1 -> {
+                    // Single food but not high confidence - show for confirmation
+                    FoodClassificationResult(
+                        results = foodResults,
+                        status = ClassificationStatus.SINGLE_MATCH,
+                        rawLabels = rawResults.map { it.label }
+                    )
+                }
+                else -> {
+                    // Multiple foods - show candidates
+                    FoodClassificationResult(
+                        results = foodResults,
+                        status = ClassificationStatus.MULTIPLE_CANDIDATES,
+                        rawLabels = rawResults.map { it.label }
+                    )
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Classification failed", e)
+            FoodClassificationResult.error()
+        }
+    }
+    
+    /**
+     * Raw ML Kit classification without food filtering.
+     */
+    private suspend fun classifyRaw(bitmap: Bitmap, maxResults: Int): List<ClassificationResult> {
         return suspendCancellableCoroutine { continuation ->
             val inputImage = InputImage.fromBitmap(bitmap, 0)
             
@@ -58,30 +136,30 @@ class FoodClassifier @Inject constructor(
                 }
         }
     }
-    
-    /**
-     * Get the best food-related label from classification results.
-     * Filters out non-food labels like "product", "material", etc.
-     */
-    fun getBestFoodLabel(results: List<ClassificationResult>): ClassificationResult? {
-        val nonFoodLabels = setOf(
-            "product", "material", "object", "device", "tool", 
-            "building", "vehicle", "furniture", "text", "document"
-        )
-        
-        return results.firstOrNull { result ->
-            !nonFoodLabels.contains(result.label.lowercase())
-        }
-    }
 }
 
 /**
- * Result from ML classification.
+ * Placeholder for future food-trained TFLite classifier.
+ * 
+ * To implement:
+ * 1. Download food-trained .tflite model (Food-101, MobileNet-Food, etc.)
+ * 2. Place in assets/ml/food_model.tflite
+ * 3. Implement this class using TensorFlow Lite Interpreter
+ * 4. Swap binding in Hilt module
+ * 
+ * @see FoodClassificationService
  */
-data class ClassificationResult(
-    val label: String,
-    val confidence: Float,
-    val index: Int
-) {
-    val confidencePercent: Int get() = (confidence * 100).toInt()
-}
+// TODO: Implement when food-trained model is available
+// class TFLiteFoodClassifier @Inject constructor(
+//     @ApplicationContext private val context: Context
+// ) : FoodClassificationService {
+//     
+//     override val classifierName = "TFLite Food-101"
+//     override val isFoodTrained = true  // This is the key difference!
+//     
+//     override suspend fun classifyFood(bitmap: Bitmap): FoodClassificationResult {
+//         // Load model from assets
+//         // Run inference
+//         // Labels are already food-specific - no filtering needed
+//     }
+// }

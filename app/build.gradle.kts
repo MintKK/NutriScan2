@@ -39,6 +39,10 @@ android {
     buildFeatures {
         compose = true
     }
+    // Prevent compression of TFLite model files
+    androidResources {
+        noCompress += "tflite"
+    }
 }
 
 dependencies {
@@ -75,6 +79,10 @@ dependencies {
 
     // ML Kit
     implementation(libs.mlkit.image.labeling)
+    
+    // TensorFlow Lite (for Food-11 model)
+    implementation("org.tensorflow:tensorflow-lite:2.14.0")
+    implementation("org.tensorflow:tensorflow-lite-support:0.4.4")
 
     // Data
     implementation(libs.gson)
