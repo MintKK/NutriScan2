@@ -85,6 +85,7 @@ fun AddMealScreen(
                     ConfirmationSheet(
                         food = uiState.selectedFood!!,
                         mlLabel = uiState.mlLabel,
+                        mlConfidence = uiState.classificationResults.firstOrNull()?.confidence,
                         portionGrams = uiState.portionGrams,
                         nutrition = uiState.calculatedNutrition,
                         isLogging = uiState.isLogging,
@@ -92,7 +93,7 @@ fun AddMealScreen(
                         onPresetSelect = { viewModel.setPortionPreset(it) },
                         onConfirm = { viewModel.confirmMeal() },
                         onCancel = { viewModel.resetState() },
-                        onNotCorrect = { viewModel.showManualSearch() }
+                        onNotCorrect = { viewModel.showCandidatesFromConfirmation() }
                     )
                 }
                 uiState.showCandidateSelection -> {
@@ -268,6 +269,7 @@ fun CameraCapture(
 fun ConfirmationSheet(
     food: FoodItem,
     mlLabel: String?,
+    mlConfidence: Float? = null,
     portionGrams: Int,
     nutrition: com.nutriscan.domain.model.NutritionResult,
     isLogging: Boolean,
@@ -294,17 +296,69 @@ fun ConfirmationSheet(
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 if (mlLabel != null) {
-                    Text(
-                        "Detected: $mlLabel",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            "Detected: $mlLabel",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                        )
+                        if (mlConfidence != null) {
+                            val confidencePercent = (mlConfidence * 100).toInt()
+                            val confidenceColor = when {
+                                confidencePercent >= 70 -> Color(0xFF4CAF50)
+                                confidencePercent >= 40 -> Color(0xFFFF9800)
+                                else -> Color(0xFFF44336)
+                            }
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = confidenceColor.copy(alpha = 0.15f)
+                            ) {
+                                Text(
+                                    "$confidencePercent%",
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = confidenceColor
+                                )
+                            }
+                        }
+                    }
                 }
                 Text(
                     food.name.replaceFirstChar { it.uppercase() },
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold
                 )
+            }
+        }
+        
+        // Low confidence warning
+        if (mlConfidence != null && mlConfidence < 0.6f) {
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = Color(0xFFFFF3E0)
+                )
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Default.Warning,
+                        contentDescription = null,
+                        tint = Color(0xFFFF9800),
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Text(
+                        "Low confidence — please verify this is the correct food",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFFE65100)
+                    )
+                }
             }
         }
         
@@ -397,7 +451,13 @@ fun ConfirmationSheet(
                 onClick = onNotCorrect,
                 modifier = Modifier.align(Alignment.CenterHorizontally)
             ) {
-                Text("Not the right food? Search manually")
+                Icon(
+                    Icons.Default.Edit,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text("Not this food? See other suggestions")
             }
         }
     }
@@ -670,7 +730,7 @@ fun UnifiedFoodCapture(
 
 /**
  * Candidate selection sheet for when ML returns multiple possible matches.
- * Shows ranked list of food candidates for user to choose from.
+ * Shows ranked list of food candidates with confidence % for user to choose from.
  */
 @Composable
 fun CandidateSelectionSheet(
@@ -679,6 +739,8 @@ fun CandidateSelectionSheet(
     onManualSearch: () -> Unit,
     onCancel: () -> Unit
 ) {
+    val bestConfidence = candidates.firstOrNull()?.confidence ?: 0f
+    
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -705,7 +767,36 @@ fun CandidateSelectionSheet(
             }
         }
         
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(8.dp))
+        
+        // Low confidence warning banner
+        if (bestConfidence < 0.6f) {
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = Color(0xFFFFF3E0)
+                )
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Default.Warning,
+                        contentDescription = null,
+                        tint = Color(0xFFFF9800),
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Text(
+                        "Low confidence — the AI isn't sure. Please verify or search manually.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFFE65100)
+                    )
+                }
+            }
+        }
+        
+        Spacer(modifier = Modifier.height(8.dp))
         
         // Candidates list
         LazyColumn(
@@ -714,6 +805,12 @@ fun CandidateSelectionSheet(
         ) {
             items(candidates) { candidate ->
                 val food = candidate.matchedFood ?: return@items
+                val confidencePercent = (candidate.confidence * 100).toInt()
+                val confidenceColor = when {
+                    confidencePercent >= 70 -> Color(0xFF4CAF50)  // Green
+                    confidencePercent >= 40 -> Color(0xFFFF9800)  // Amber
+                    else -> Color(0xFFF44336)                     // Red
+                }
                 
                 Card(
                     modifier = Modifier
@@ -735,11 +832,29 @@ fun CandidateSelectionSheet(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                food.name.replaceFirstChar { it.uppercase() },
-                                fontWeight = FontWeight.Medium,
-                                style = MaterialTheme.typography.bodyLarge
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text(
+                                    food.name.replaceFirstChar { it.uppercase() },
+                                    fontWeight = FontWeight.Medium,
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                                // Confidence badge
+                                Surface(
+                                    shape = RoundedCornerShape(4.dp),
+                                    color = confidenceColor.copy(alpha = 0.15f)
+                                ) {
+                                    Text(
+                                        "$confidencePercent%",
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = confidenceColor
+                                    )
+                                }
+                            }
                             Row(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {

@@ -126,47 +126,31 @@ class AddMealViewModel @Inject constructor(
     
     /**
      * Handle when food WAS detected by the classifier.
-     * Now proceed to database matching.
+     * Always show candidates — never auto-select, because the model
+     * may misidentify foods. The user should always confirm.
      */
     private suspend fun handleFoodDetected(classification: FoodClassificationResult) {
         val mlResults = classification.results
         
         // Match ML results against food database
         val matchResults = foodMatchingService.matchClassifications(mlResults)
-        
-        // EXTREMELY CONSERVATIVE auto-selection:
-        // Only auto-select if:
-        // 1. Classifier is food-trained (not generic ML Kit)
-        // 2. Classification is high confidence
-        // 3. Match is safe (exact or alias, not partial)
-        val canAutoSelect = foodClassifier.isFoodTrained && classification.isHighConfidence
-        val bestAutoSelect = if (canAutoSelect) {
-            foodMatchingService.getBestAutoSelectMatch(matchResults)
-        } else {
-            // Generic classifiers: NEVER auto-select, always show candidates or manual
-            null
-        }
-        
         val candidates = foodMatchingService.getValidCandidates(matchResults)
         
         when {
-            // Only auto-select with food-trained model + high confidence
-            bestAutoSelect != null -> {
-                Log.d(TAG, "Auto-selecting: ${bestAutoSelect.matchedFood?.name}")
-                autoSelectFood(bestAutoSelect)
-            }
-            
-            // Has candidates → show selection list (user picks)
+            // Has candidates → always show selection list (user picks)
             candidates.isNotEmpty() -> {
                 Log.d(TAG, "Showing ${candidates.size} candidates for user selection")
                 showCandidateSelection(candidates, mlResults)
             }
             
-            // No database matches → manual search with ML hint
+            // No database matches → manual search with top ML predictions as context
             else -> {
+                val topPredictions = mlResults.take(3).joinToString(", ") {
+                    "${it.label} (${it.confidencePercent}%)"
+                }
                 val hint = mlResults.firstOrNull()?.label ?: ""
-                val message = if (hint.isNotBlank()) {
-                    "Detected \"$hint\" but couldn't match. Try searching manually."
+                val message = if (topPredictions.isNotBlank()) {
+                    "AI predictions: $topPredictions — but no match in database. Please search manually."
                 } else {
                     "Couldn't match to database. Please search manually."
                 }
@@ -341,6 +325,25 @@ class AddMealViewModel @Inject constructor(
             showCandidateSelection = false,
             showConfirmation = false
         ) }
+    }
+    
+    /**
+     * "Not this food?" — re-show candidates if available, else manual search.
+     */
+    fun showCandidatesFromConfirmation() {
+        val currentState = _uiState.value
+        if (currentState.matchResults.size > 1) {
+            // Show remaining candidates (excluding the one already selected)
+            _uiState.update { it.copy(
+                showCandidateSelection = true,
+                showConfirmation = false,
+                showManualSearch = false,
+                selectedFood = null
+            ) }
+        } else {
+            // No other candidates — go to manual search
+            showManualSearch()
+        }
     }
     
     /**

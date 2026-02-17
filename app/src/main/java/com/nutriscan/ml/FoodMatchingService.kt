@@ -87,7 +87,7 @@ class FoodMatchingService @Inject constructor(
                 matches.add(FoodMatchResult(
                     mlLabel = category,  // Keep original category as ML label
                     normalizedLabel = term,  // But use specific term for display
-                    confidence = confidence * 0.9f,  // Slight penalty for expansion
+                    confidence = confidence * 0.95f,  // Slight penalty for expansion
                     matchedFood = food,
                     matchType = MatchType.ALIAS  // Category → food is like alias
                 ))
@@ -99,7 +99,7 @@ class FoodMatchingService @Inject constructor(
                     matches.add(FoodMatchResult(
                         mlLabel = category,
                         normalizedLabel = term,
-                        confidence = confidence * 0.85f,
+                        confidence = confidence * 0.9f,
                         matchedFood = food,
                         matchType = MatchType.ALIAS
                     ))

@@ -26,7 +26,7 @@ data class FoodMatchResult(
 ) {
     companion object {
         const val HIGH_CONFIDENCE_THRESHOLD = 0.70f
-        const val LOW_CONFIDENCE_THRESHOLD = 0.50f
+        const val LOW_CONFIDENCE_THRESHOLD = 0.15f  // Show more candidates since user always confirms
     }
     
     /**

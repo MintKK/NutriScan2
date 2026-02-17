@@ -30,7 +30,7 @@ class TFLiteFoodClassifier @Inject constructor(
         
         // Thresholds (in 0-1 scale after normalization)
         private const val MIN_CONFIDENCE = 0.05f
-        private const val HIGH_CONFIDENCE = 0.5f
+        private const val HIGH_CONFIDENCE = 0.7f
     }
     
     override val classifierName = "TFLite Food Classifier"
