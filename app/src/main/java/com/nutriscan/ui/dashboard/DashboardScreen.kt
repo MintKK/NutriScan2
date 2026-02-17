@@ -71,7 +71,8 @@ fun DashboardScreen(
                 CalorieProgressCard(
                     consumed = todayCalories,
                     goal = calorieGoal,
-                    macros = todayMacros
+                    macros = todayMacros,
+                    onAnalyticsClick
                 )
             }
             
@@ -110,14 +111,16 @@ fun DashboardScreen(
 fun CalorieProgressCard(
     consumed: Int,
     goal: Int,
-    macros: MacroTotals
+    macros: MacroTotals,
+    onAnalyticsClick: () -> Unit,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant
-        )
+        ),
+        onClick = onAnalyticsClick
     ) {
         Column(
             modifier = Modifier.padding(20.dp),

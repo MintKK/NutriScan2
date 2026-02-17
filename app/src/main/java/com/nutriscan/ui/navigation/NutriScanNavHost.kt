@@ -6,6 +6,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import com.nutriscan.ui.addmeal.AddMealScreen
 import com.nutriscan.ui.analytics.AnalyticsScreen
+import com.nutriscan.ui.calorietarget.CalorieTargetScreen
 import com.nutriscan.ui.dashboard.DashboardScreen
 
 /**
@@ -15,6 +16,8 @@ sealed class Screen(val route: String) {
     object Dashboard : Screen("dashboard")
     object AddMeal : Screen("add_meal")
     object Analytics : Screen("analytics")
+
+    object CalorieTarget : Screen("calorie_target")
 }
 
 @Composable
@@ -41,8 +44,16 @@ fun NutriScanNavHost(
         
         composable(Screen.Analytics.route) {
             AnalyticsScreen(
+                onCalorieTargetClick = { navController.navigate(Screen.CalorieTarget.route) },
                 onBack = { navController.popBackStack() }
             )
         }
+
+        composable(Screen.CalorieTarget.route) {
+            CalorieTargetScreen(
+                onBack = { navController.popBackStack() }
+            )
+        }
+
     }
 }

@@ -6,6 +6,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AddLocation
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material3.*
@@ -24,11 +25,13 @@ import com.nutriscan.data.local.dao.DailyCalories
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AnalyticsScreen(
+    onCalorieTargetClick: () -> Unit,
     onBack: () -> Unit,
     viewModel: AnalyticsViewModel = hiltViewModel()
 ) {
     val last7Days by viewModel.last7DaysCalories.collectAsState()
     val weeklyAverage by viewModel.weeklyAverage.collectAsState()
+    val targetCalories by viewModel.getTargetCalories.collectAsState()
     
     Scaffold(
         topBar = {
@@ -57,31 +60,73 @@ fun AnalyticsScreen(
                     containerColor = MaterialTheme.colorScheme.primaryContainer
                 )
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(20.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text(
-                            "Weekly Average",
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                        Text(
-                            "${weeklyAverage.toInt()} kcal/day",
-                            style = MaterialTheme.typography.headlineMedium,
-                            fontWeight = FontWeight.Bold
+
+                Column() {
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(20.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                "Weekly Goal",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Text(
+                                "${targetCalories.toInt()} kcal/day",
+                                style = MaterialTheme.typography.headlineMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        Button(
+                            onClick = onCalorieTargetClick
+                        ) {
+                            Text("Edit Goal")
+                        }
+//                        Icon(
+//                            Icons.Default.AddLocation,
+//                            contentDescription = null,
+//                            modifier = Modifier.size(48.dp),
+//                            tint = MaterialTheme.colorScheme.onPrimaryContainer
+//                        )
+                    }
+
+                    HorizontalDivider(
+                        thickness = 2.dp,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(20.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                "Weekly Average",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Text(
+                                "${weeklyAverage.toInt()} kcal/day",
+                                style = MaterialTheme.typography.headlineMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        Icon(
+                            Icons.Default.TrendingUp,
+                            contentDescription = null,
+                            modifier = Modifier.size(48.dp),
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer
                         )
                     }
-                    Icon(
-                        Icons.Default.TrendingUp,
-                        contentDescription = null,
-                        modifier = Modifier.size(48.dp),
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
                 }
+
+
             }
             
             // Trend Chart
