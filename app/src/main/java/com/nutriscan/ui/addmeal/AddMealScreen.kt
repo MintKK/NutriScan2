@@ -578,7 +578,7 @@ fun UnifiedFoodCapture(
     val sampleImages = remember {
         listOf(
             SampleFoodImage("sample_images/banana.png", "Sample 1"),
-            SampleFoodImage("sample_images/apple.png", "Sample 2"),
+            SampleFoodImage("sample_images/fried_rice.png", "Sample 2"),
             SampleFoodImage("sample_images/pizza.png", "Sample 3"),
             SampleFoodImage("sample_images/hamburger.png", "Sample 4")
         )
