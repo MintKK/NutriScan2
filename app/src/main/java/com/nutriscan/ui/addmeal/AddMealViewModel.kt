@@ -132,9 +132,25 @@ class AddMealViewModel @Inject constructor(
     private suspend fun handleFoodDetected(classification: FoodClassificationResult) {
         val mlResults = classification.results
         
+        // Re-initialize index to pick up any DB changes (handles seeding race condition)
+        try {
+            foodMatchingService.initialize()
+            // If index is empty, DB might still be seeding — wait and retry once
+            if (!foodMatchingService.isReady()) {
+                Log.w(TAG, "Food index empty — DB may still be seeding. Retrying in 1s...")
+                kotlinx.coroutines.delay(1000)
+                foodMatchingService.initialize()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to initialize food index", e)
+        }
+        
         // Match ML results against food database
         val matchResults = foodMatchingService.matchClassifications(mlResults)
         val candidates = foodMatchingService.getValidCandidates(matchResults)
+        
+        Log.d(TAG, "Match results: ${matchResults.map { "${it.mlLabel} → ${it.matchedFood?.name ?: "NO MATCH"} (${it.matchType})" }}")
+        Log.d(TAG, "Valid candidates: ${candidates.size}")
         
         when {
             // Has candidates → always show selection list (user picks)

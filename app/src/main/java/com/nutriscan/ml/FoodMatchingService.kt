@@ -1,5 +1,6 @@
 package com.nutriscan.ml
 
+import android.util.Log
 import com.nutriscan.data.local.entity.FoodItem
 import com.nutriscan.data.repository.FoodRepository
 import kotlinx.coroutines.flow.first
@@ -14,17 +15,29 @@ import javax.inject.Singleton
 class FoodMatchingService @Inject constructor(
     private val foodRepository: FoodRepository
 ) {
+    companion object {
+        private const val TAG = "FoodMatchingService"
+    }
+    
     // Lazy-initialized index, built on first use
     private var aliasIndex: FoodAliasIndex? = null
     
     /**
      * Initialize the alias index from database.
-     * Should be called once at app startup or before first classification.
+     * Always rebuilds to pick up any DB changes.
      */
     suspend fun initialize() {
-        if (aliasIndex == null) {
-            val foods = foodRepository.getAllFoods().first()
-            aliasIndex = FoodAliasIndex(foods)
+        val foods = foodRepository.getAllFoods().first()
+        Log.d(TAG, "Building index from ${foods.size} foods")
+        aliasIndex = FoodAliasIndex(foods)
+        Log.d(TAG, "Index built: ${aliasIndex!!.size()} names, aliases loaded")
+        
+        // Debug: print all indexed aliases
+        foods.forEach { food ->
+            val aliases = food.aliases?.split(",")?.map { it.trim() }?.filter { it.isNotBlank() } ?: emptyList()
+            if (aliases.isNotEmpty()) {
+                Log.d(TAG, "  ${food.name} → aliases: $aliases")
+            }
         }
     }
     
@@ -124,35 +137,42 @@ class FoodMatchingService @Inject constructor(
         index: FoodAliasIndex
     ): List<FoodMatchResult> {
         val normalized = LabelNormalizer.normalize(label)
+        Log.d(TAG, "matchSingleLabel: '$label' → normalized='$normalized'")
         
         // Skip empty or very short labels
         if (normalized.length < 2) {
+            Log.d(TAG, "  Skipped (too short)")
             return listOf(createNoMatchResult(label, normalized, confidence))
         }
         
         val tokens = LabelNormalizer.extractTokens(normalized)
+        Log.d(TAG, "  Tokens: $tokens")
         val matches = mutableListOf<FoodMatchResult>()
         
         // Try each token for matching
         for (token in tokens) {
             // 1. Exact name match (highest priority)
-            index.findByExactName(token)?.let { food ->
+            val exactMatch = index.findByExactName(token)
+            Log.d(TAG, "  Exact '$token' → ${exactMatch?.name ?: "null"}")
+            if (exactMatch != null) {
                 return listOf(FoodMatchResult(
                     mlLabel = label,
                     normalizedLabel = normalized,
                     confidence = confidence,
-                    matchedFood = food,
+                    matchedFood = exactMatch,
                     matchType = if (token == normalized) MatchType.EXACT else MatchType.TOKEN
                 ))
             }
             
             // 2. Alias match
-            index.findByAlias(token)?.let { food ->
+            val aliasMatch = index.findByAlias(token)
+            Log.d(TAG, "  Alias '$token' → ${aliasMatch?.name ?: "null"}")
+            if (aliasMatch != null) {
                 matches.add(FoodMatchResult(
                     mlLabel = label,
                     normalizedLabel = normalized,
                     confidence = confidence,
-                    matchedFood = food,
+                    matchedFood = aliasMatch,
                     matchType = MatchType.ALIAS
                 ))
             }
@@ -160,21 +180,25 @@ class FoodMatchingService @Inject constructor(
         
         // Return alias matches if found
         if (matches.isNotEmpty()) {
+            Log.d(TAG, "  → Found ${matches.size} alias match(es)")
             return matches
         }
         
         // 3. Fallback: partial match (never auto-selected)
-        index.findByPartialName(normalized)?.let { food ->
+        val partialMatch = index.findByPartialName(normalized)
+        Log.d(TAG, "  Partial '$normalized' → ${partialMatch?.name ?: "null"}")
+        if (partialMatch != null) {
             return listOf(FoodMatchResult(
                 mlLabel = label,
                 normalizedLabel = normalized,
                 confidence = confidence,
-                matchedFood = food,
+                matchedFood = partialMatch,
                 matchType = MatchType.PARTIAL
             ))
         }
         
         // 4. No match found
+        Log.d(TAG, "  → NO MATCH for '$label'")
         return listOf(createNoMatchResult(label, normalized, confidence))
     }
     

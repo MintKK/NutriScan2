@@ -216,8 +216,13 @@ class TFLiteFoodClassifier @Inject constructor(
     }
     
     private fun parseOutput(output: List<Float>): List<ClassificationResult> {
-        val topIndices = output.indices.sortedByDescending { output[it] }.take(5)
-        Log.d(TAG, "Top 5 raw: ${topIndices.map { "[$it]=${String.format("%.3f", output[it])}" }}")
+        val topIndices = output.indices.sortedByDescending { output[it] }.take(10)
+        Log.d(TAG, "=== TOP-10 RAW OUTPUT ===")
+        topIndices.forEachIndexed { rank, idx ->
+            val label = if (idx < labels.size) labels[idx] else "Unknown_$idx"
+            Log.d(TAG, "#${rank+1}: [$idx] $label = ${String.format("%.4f", output[idx])} (${(output[idx]*100).toInt()}%)")
+        }
+        Log.d(TAG, "========================")
         
         return output.mapIndexed { index, confidence ->
             val label = if (index < labels.size) labels[index] else "Unknown_$index"
