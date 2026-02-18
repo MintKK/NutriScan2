@@ -7,6 +7,7 @@ import com.google.gson.reflect.TypeToken
 import com.nutriscan.data.local.AppDatabase
 import com.nutriscan.data.local.dao.FoodItemDao
 import com.nutriscan.data.local.dao.MealLogDao
+import com.nutriscan.data.local.dao.StepLogDao
 import com.nutriscan.data.local.entity.FoodItem
 import androidx.room.Room
 import dagger.Module
@@ -68,5 +69,10 @@ object DatabaseModule {
     @Provides
     fun provideMealLogDao(database: AppDatabase): MealLogDao {
         return database.mealLogDao()
+    }
+    
+    @Provides
+    fun provideStepLogDao(database: AppDatabase): StepLogDao {
+        return database.stepLogDao()
     }
 }

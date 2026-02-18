@@ -87,6 +87,9 @@ dependencies {
     // Data
     implementation(libs.gson)
     implementation(libs.datastore.preferences)
+    
+    // Lifecycle service (for StepCounterService)
+    implementation("androidx.lifecycle:lifecycle-service:2.6.2")
 
     // Testing
     testImplementation(libs.junit)
