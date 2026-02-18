@@ -3,6 +3,7 @@ package com.nutriscan.ui.addmeal
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.util.Log
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.Preview
@@ -139,6 +140,29 @@ fun CameraCapture(
     var previewView by remember { mutableStateOf<PreviewView?>(null) }
     var imageCapture by remember { mutableStateOf<ImageCapture?>(null) }
     val executor = remember { Executors.newSingleThreadExecutor() }
+
+    // state to track if permission is granted to use the camera
+    var hasCameraPermission by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(
+                context,
+                android.Manifest.permission.CAMERA
+            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        )
+    }
+
+    // launcher to request permission
+    val launcher = rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.RequestPermission(),
+        onResult = { hasCameraPermission = it }
+    )
+
+    // launch permission request when this screen is shown
+    LaunchedEffect(Unit) {
+        if (!hasCameraPermission) {
+            launcher.launch(android.Manifest.permission.CAMERA)
+        }
+    }
     
     // Setup camera
     LaunchedEffect(previewView) {
