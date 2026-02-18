@@ -90,6 +90,9 @@ dependencies {
     
     // Lifecycle service (for StepCounterService)
     implementation("androidx.lifecycle:lifecycle-service:2.6.2")
+    
+    // Google Play Services — Activity Recognition API
+    implementation("com.google.android.gms:play-services-location:21.0.1")
 
     // Testing
     testImplementation(libs.junit)

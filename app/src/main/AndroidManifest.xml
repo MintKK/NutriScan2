@@ -23,6 +23,12 @@
     <!-- Notification permission (API 33+) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- Wake lock for persistent background tracking -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <!-- Request battery optimization exemption -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
     <application
         android:name=".NutriScanApplication"
         android:allowBackup="true"
@@ -51,6 +57,11 @@
             android:name=".sensor.StepCounterService"
             android:exported="false"
             android:foregroundServiceType="health" />
+
+        <!-- Activity recognition transition receiver -->
+        <receiver
+            android:name=".sensor.ActivityTransitionReceiver"
+            android:exported="false" />
     </application>
 
 </manifest>

@@ -8,6 +8,7 @@ import com.nutriscan.data.local.AppDatabase
 import com.nutriscan.data.local.dao.FoodItemDao
 import com.nutriscan.data.local.dao.MealLogDao
 import com.nutriscan.data.local.dao.StepLogDao
+import com.nutriscan.data.local.dao.ActivityLogDao
 import com.nutriscan.data.local.entity.FoodItem
 import androidx.room.Room
 import dagger.Module
@@ -74,5 +75,10 @@ object DatabaseModule {
     @Provides
     fun provideStepLogDao(database: AppDatabase): StepLogDao {
         return database.stepLogDao()
+    }
+    
+    @Provides
+    fun provideActivityLogDao(database: AppDatabase): ActivityLogDao {
+        return database.activityLogDao()
     }
 }

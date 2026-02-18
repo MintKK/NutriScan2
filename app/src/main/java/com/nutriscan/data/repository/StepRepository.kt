@@ -12,7 +12,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Repository for step count data.
+ * Repository for step count and distance data.
  * Handles date formatting and provides clean APIs for the sensor layer and UI.
  */
 @Singleton
@@ -46,16 +46,31 @@ class StepRepository @Inject constructor(
         return stepLogDao.getStepsForDateRange(sevenDaysAgo, today)
     }
 
+    /** Observe steps for a specific date. */
+    fun getStepsForDate(date: String): Flow<Int> {
+        return stepLogDao.getStepCountByDate(date)
+    }
+
+    /** Observe distance for a specific date. */
+    fun getDistanceForDate(date: String): Flow<Double> {
+        return stepLogDao.getDistanceByDate(date)
+    }
+
+    /** Get step logs for a custom date range. */
+    fun getStepsForDateRange(startDate: String, endDate: String): Flow<List<StepLog>> {
+        return stepLogDao.getStepsForDateRange(startDate, endDate)
+    }
+
     // ============ WRITES ============
 
     /**
-     * Record steps for today. Tries atomic increment first;
-     * if no row exists yet, inserts a new record.
+     * Record steps and distance for today. Updates existing record or creates new.
      *
-     * @param totalSteps   The new total step count for today.
-     * @param sensorValue  Raw TYPE_STEP_COUNTER value (or -1 for accelerometer).
+     * @param totalSteps     The new total step count for today.
+     * @param distanceMeters The new total distance in meters for today.
+     * @param sensorValue    Raw TYPE_STEP_COUNTER value (or -1 for accelerometer).
      */
-    suspend fun recordSteps(totalSteps: Int, sensorValue: Int = -1) {
+    suspend fun recordSteps(totalSteps: Int, distanceMeters: Double = 0.0, sensorValue: Int = -1) {
         val date = todayDate()
         val now = System.currentTimeMillis()
         val existing = stepLogDao.getStepLogByDateSync(date)
@@ -64,6 +79,7 @@ class StepRepository @Inject constructor(
             stepLogDao.upsert(
                 existing.copy(
                     steps = totalSteps,
+                    distanceMeters = distanceMeters,
                     lastSensorValue = sensorValue,
                     lastUpdated = now
                 )
@@ -73,6 +89,7 @@ class StepRepository @Inject constructor(
                 StepLog(
                     date = date,
                     steps = totalSteps,
+                    distanceMeters = distanceMeters,
                     lastSensorValue = sensorValue,
                     lastUpdated = now
                 )

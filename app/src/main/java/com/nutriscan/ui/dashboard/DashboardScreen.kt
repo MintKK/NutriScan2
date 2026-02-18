@@ -9,8 +9,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -33,6 +35,7 @@ import java.util.*
 fun DashboardScreen(
     onAddMealClick: () -> Unit,
     onAnalyticsClick: () -> Unit,
+    onCaloriesBurnedClick: () -> Unit = {},
     viewModel: DashboardViewModel = hiltViewModel()
 ) {
     val todayCalories by viewModel.todayCalories.collectAsState()
@@ -40,6 +43,8 @@ fun DashboardScreen(
     val todayMacros by viewModel.todayMacros.collectAsState()
     val todayMeals by viewModel.todayMeals.collectAsState()
     val weeklyAverage by viewModel.weeklyAverage.collectAsState()
+    val liveSteps by viewModel.liveSteps.collectAsState()
+    val isStepTrackingActive by viewModel.isStepTrackingActive.collectAsState()
     
     Scaffold(
         topBar = {
@@ -78,6 +83,15 @@ fun DashboardScreen(
             // Weekly Average Card
             item {
                 WeeklyAverageCard(average = weeklyAverage.toInt())
+            }
+            
+            // Calories Burned / Activity Card
+            item {
+                CaloriesBurnedQuickCard(
+                    steps = liveSteps,
+                    isTracking = isStepTrackingActive,
+                    onClick = onCaloriesBurnedClick
+                )
             }
             
             // Today's Meals Header
@@ -340,3 +354,63 @@ fun MealLogItem(
         }
     }
 }
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun CaloriesBurnedQuickCard(
+    steps: Int,
+    isTracking: Boolean,
+    onClick: () -> Unit
+) {
+    Card(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isTracking) {
+                Color(0xFF4CAF50).copy(alpha = 0.1f)
+            } else {
+                MaterialTheme.colorScheme.surfaceVariant
+            }
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Icon(
+                    Icons.Default.LocalFireDepartment,
+                    contentDescription = null,
+                    tint = Color(0xFFFF9800),
+                    modifier = Modifier.size(28.dp)
+                )
+                Column {
+                    Text(
+                        "Calories Burned",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        if (isTracking) "🚶 ${String.format("%,d", steps)} steps"
+                        else "Tap to view activity tracking",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            Icon(
+                Icons.AutoMirrored.Filled.DirectionsWalk,
+                contentDescription = "Go to Calories Burned",
+                tint = MaterialTheme.colorScheme.primary
+            )
+        }
+    }
+}
+

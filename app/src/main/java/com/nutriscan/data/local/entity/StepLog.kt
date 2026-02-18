@@ -23,6 +23,10 @@ data class StepLog(
     /** Accumulated step count for this day. */
     val steps: Int = 0,
 
+    /** Estimated distance in meters for this day. */
+    @ColumnInfo(name = "distance_meters")
+    val distanceMeters: Double = 0.0,
+
     /**
      * Last raw value from TYPE_STEP_COUNTER sensor (steps since boot).
      * Used to compute deltas between sensor events.

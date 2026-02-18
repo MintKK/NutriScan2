@@ -50,4 +50,8 @@ interface StepLogDao {
     /** Get total steps for a specific date (returns 0 if no record). */
     @Query("SELECT COALESCE(steps, 0) FROM step_logs WHERE date = :date")
     fun getStepCountByDate(date: String): Flow<Int>
+
+    /** Get distance for a specific date (returns 0 if no record). */
+    @Query("SELECT COALESCE(distance_meters, 0.0) FROM step_logs WHERE date = :date")
+    fun getDistanceByDate(date: String): Flow<Double>
 }
