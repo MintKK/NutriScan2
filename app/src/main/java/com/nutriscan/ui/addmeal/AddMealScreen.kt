@@ -2,8 +2,15 @@ package com.nutriscan.ui.addmeal
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.ImageDecoder
+import android.net.Uri
+import android.os.Build
+import android.provider.MediaStore
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContract
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.Preview
@@ -124,6 +131,63 @@ fun AddMealScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+fun GalleryPicker(
+    onImagePicked: (Bitmap) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val context = LocalContext.current
+
+    // launcher for photo picker
+    val launcher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            // convert URI to bitmap
+            val bitmap = try {
+                if (Build.VERSION.SDK_INT < 28) {
+                    @Suppress("DEPRECATION")
+                    MediaStore.Images.Media.getBitmap(context.contentResolver, uri)
+                } else {
+                    val source = ImageDecoder.createSource(context.contentResolver, uri)
+                    ImageDecoder.decodeBitmap(source) { decoder, _, _ ->
+                        // optional part: scale down if image is massive to prevent out-of-memory
+                        decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+                        decoder.isMutableRequired = true
+                    }
+                }
+            } catch (ex: Exception) {
+                ex.printStackTrace()
+                null
+            }
+
+            bitmap?.let { onImagePicked(it) }
+        } else {
+            // user cancelled
+            onDismiss()
+        }
+    }
+
+    // launch immediately when this composable enters composition
+    LaunchedEffect(Unit) {
+        launcher.launch(
+            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+        )
+    }
+
+    // show a placeholder or loading screen while the system picker is open
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        CircularProgressIndicator()
+        Text(
+            text = "Opening Gallery...",
+            modifier = Modifier.padding(top = 64.dp)
+        )
     }
 }
 
