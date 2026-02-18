@@ -15,7 +15,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -158,6 +160,7 @@ fun AnalyticsScreen(
             } else {
                 CalorieTrendChart(
                     data = last7Days,
+                    targetCalorie = targetCalories,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(220.dp)
@@ -181,6 +184,7 @@ fun AnalyticsScreen(
 @Composable
 fun CalorieTrendChart(
     data: List<DailyCalories>,
+    targetCalorie: Int,
     modifier: Modifier = Modifier
 ) {
     val primaryColor = MaterialTheme.colorScheme.primary
@@ -202,7 +206,8 @@ fun CalorieTrendChart(
                     .fillMaxSize()
                     .padding(16.dp)
             ) {
-                val maxValue = data.maxOfOrNull { it.totalKcal }?.toFloat()?.coerceAtLeast(1f) ?: 1f
+                val maxDataValue = data.maxOfOrNull { it.totalKcal }?.toFloat() ?: 0f
+                val maxValue = maxOf(maxDataValue, targetCalorie.toFloat()).coerceAtLeast(1f)
                 val width = size.width
                 val height = size.height
                 val barWidth = width / (data.size * 2)
@@ -212,12 +217,21 @@ fun CalorieTrendChart(
                     val barHeight = (daily.totalKcal / maxValue) * height * 0.8f
                     val x = index * (width / data.size) + barWidth / 2
                     val y = height - barHeight
-                    
-                    drawRect(
-                        color = primaryColor,
-                        topLeft = Offset(x, y),
-                        size = Size(barWidth, barHeight)
-                    )
+
+                    if (daily.totalKcal < targetCalorie) {
+                        drawRect(
+                            color = Color(0xFF80C583),
+                            topLeft = Offset(x, y),
+                            size = Size(barWidth, barHeight)
+                        )
+                    } else {
+                        drawRect(
+                            color = Color(0xFFB87777),
+                            topLeft = Offset(x, y),
+                            size = Size(barWidth, barHeight)
+                        )
+                    }
+
                 }
                 
                 // Draw trend line
@@ -238,6 +252,31 @@ fun CalorieTrendChart(
                         path = path,
                         color = primaryColor.copy(alpha = 0.5f),
                         style = Stroke(width = 3.dp.toPx())
+                    )
+                }
+
+                // Draw Goal line
+                if (true){
+                    val path = Path()
+                    val x0 = 0f
+                    val y0 = height - (targetCalorie / maxValue) * height * 0.8f
+
+                    val x1 = width
+                    val y1 = y0
+
+                    path.moveTo(x0,y0)
+                    path.lineTo(x1,y1)
+
+                    drawPath(
+                        path = path,
+                        color = primaryColor.copy(alpha = 0.5f),
+                        style = Stroke(
+                            width = 3.dp.toPx(),
+                            pathEffect = PathEffect.dashPathEffect(
+                                floatArrayOf(10f, 10f), // [dash length, gap length] in pixels
+                                0f
+                            )
+                        )
                     )
                 }
             }

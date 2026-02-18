@@ -2,12 +2,18 @@ package com.nutriscan.ui.calorietarget
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.FitnessCenter
+import androidx.compose.material.icons.filled.Male
+import androidx.compose.material.icons.filled.Man
+import androidx.compose.material.icons.filled.Man3
 import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -35,11 +41,6 @@ fun CalorieTargetScreen(
     onBack: () -> Unit,
     viewModel: CalorieTargetViewModel = hiltViewModel()
 ) {
-//    val last7Days by viewModel.last7DaysCalories.collectAsState()
-//    val weeklyAverage by viewModel.weeklyAverage.collectAsState()
-
-//    val target by viewModel.getTargetCalories.collectAsState()
-
     val targetCalories by viewModel.getTargetCalories.collectAsState()
     var customCaloriesString by remember(targetCalories) { mutableStateOf(targetCalories.toString()) }
 
@@ -49,6 +50,8 @@ fun CalorieTargetScreen(
     var weightString by remember { mutableStateOf("50") }
     var heightString by remember { mutableStateOf("165") }
     var ageString by remember { mutableStateOf("21") }
+
+    customCaloriesString = CalculateBMICalorie(!isFemale, weightString,heightString,ageString)
 
     Scaffold(
         topBar = {
@@ -96,7 +99,8 @@ fun CalorieTargetScreen(
                             ) {
                                 Text(
                                     "Male",
-                                    style = MaterialTheme.typography.bodyMedium
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    modifier = Modifier.padding(horizontal = 20.dp)
                                 )
                                 Switch(
                                     checked = isFemale,
@@ -108,13 +112,14 @@ fun CalorieTargetScreen(
                                 )
                                 Text(
                                     "Female",
-                                    style = MaterialTheme.typography.bodyMedium
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    modifier = Modifier.padding(horizontal = 20.dp)
                                 )
                             }
 
                         }
                         Icon(
-                            Icons.Default.TrendingUp,
+                            Icons.Default.Male,
                             contentDescription = null,
                             modifier = Modifier.size(48.dp),
                             tint = MaterialTheme.colorScheme.onPrimaryContainer
@@ -141,7 +146,7 @@ fun CalorieTargetScreen(
                                     targetSaved = false
                                     customCaloriesString = CalculateBMICalorie(!isFemale, weightString,heightString,ageString)
                                 },
-                                label = { Text("Weight") },
+                                label = { Text("Weight (kg)") },
                                 keyboardOptions = KeyboardOptions(
                                     keyboardType = KeyboardType.Number,
                                     imeAction = ImeAction.Done
@@ -149,7 +154,7 @@ fun CalorieTargetScreen(
                             )
                         }
                         Icon(
-                            Icons.Default.TrendingUp,
+                            Icons.Default.FitnessCenter,
                             contentDescription = null,
                             modifier = Modifier.size(48.dp),
                             tint = MaterialTheme.colorScheme.onPrimaryContainer
@@ -176,7 +181,7 @@ fun CalorieTargetScreen(
                                     targetSaved = false
                                     customCaloriesString = CalculateBMICalorie(!isFemale, weightString,heightString,ageString)
                                 },
-                                label = { Text("Height") },
+                                label = { Text("Height (cm)") },
                                 keyboardOptions = KeyboardOptions(
                                     keyboardType = KeyboardType.Number,
                                     imeAction = ImeAction.Done
@@ -184,7 +189,7 @@ fun CalorieTargetScreen(
                             )
                         }
                         Icon(
-                            Icons.Default.TrendingUp,
+                            Icons.Default.Man,
                             contentDescription = null,
                             modifier = Modifier.size(48.dp),
                             tint = MaterialTheme.colorScheme.onPrimaryContainer
@@ -219,7 +224,7 @@ fun CalorieTargetScreen(
                             )
                         }
                         Icon(
-                            Icons.Default.TrendingUp,
+                            Icons.Default.CalendarMonth,
                             contentDescription = null,
                             modifier = Modifier.size(48.dp),
                             tint = MaterialTheme.colorScheme.onPrimaryContainer
@@ -252,7 +257,10 @@ fun CalorieTargetScreen(
                 modifier = Modifier.fillMaxWidth()
             )
 
-            Row() {
+            Row(
+                horizontalArrangement = Arrangement.SpaceAround,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Button(
                     onClick = {
                         customCaloriesString.toIntOrNull()?.let { cal ->
@@ -265,13 +273,16 @@ fun CalorieTargetScreen(
                     Text("Confirm Target")
                 }
 
+
                 if (targetSaved) {
                     Text(
                         text = "Target Saved ✅",
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Bold,
-                        color = Color.Green
+                        color = Color.Green,
                     )
+                } else {
+                    Text("")
                 }
             }
 
@@ -285,11 +296,12 @@ fun CalculateBMICalorie(isMale:Boolean, weightStr:String, heightStr:String, ageS
     val height: Int = heightStr.toIntOrNull() ?: 0
     val age: Int = ageStr.toIntOrNull() ?: 0
 
+    // Harris-Benedict
     val out: Double
     if (isMale)
-        out = 66.47+(13.75*weight) + (5.003*height) - (6.775*age)
+        out = 66.47 + (13.75 * weight) + (5.003 * height) - (6.775 * age)
     else
-        out = 655.1 + (9.563*weight) + (1.805*height) - (4.676 * age)
+        out = 655.1 + (9.563 * weight) + (1.850 * height) - (4.676 * age)
 
     return out.roundToInt().toString()
 }

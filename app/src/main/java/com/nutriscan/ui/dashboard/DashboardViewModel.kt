@@ -21,7 +21,8 @@ class DashboardViewModel @Inject constructor(
     
     // User's calorie goal (can be made configurable via DataStore)
     private val _calorieGoal = MutableStateFlow(2000)
-    val calorieGoal: StateFlow<Int> = _calorieGoal.asStateFlow()
+    val calorieGoal: StateFlow<Int> = mealRepository.getTargetCalories()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000),0)
     
     val todayCalories: StateFlow<Int> = mealRepository.getTodayTotalCalories()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)

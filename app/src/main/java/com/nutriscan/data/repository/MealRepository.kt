@@ -1,5 +1,7 @@
 package com.nutriscan.data.repository
 
+import android.os.Build
+import androidx.annotation.RequiresApi
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
@@ -16,7 +18,11 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import androidx.datastore.preferences.core.emptyPreferences
 import kotlinx.coroutines.flow.catch
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 
+@RequiresApi(Build.VERSION_CODES.O)
+private val formatter = DateTimeFormatter.ISO_LOCAL_DATE // "yyyy-MM-dd"
 
 @Singleton
 class MealRepository @Inject constructor(
@@ -61,6 +67,21 @@ class MealRepository @Inject constructor(
     fun getLast7DaysCalories(): Flow<List<DailyCalories>> {
         val sevenDaysAgo = getStartOfDayTimestamp() - (7 * 24 * 60 * 60 * 1000L)
         return mealLogDao.getDailyCaloriesTrend(sevenDaysAgo)
+            .map { rawList ->
+                fillMissingDays(rawList, daysCount = 7)
+            }
+    }
+
+    // To fill in missing days so that last 7 days chart displays properly
+    fun fillMissingDays(data: List<DailyCalories>, daysCount: Int = 7): List<DailyCalories> {
+        val today = LocalDate.now()
+        val daysList = (0 until daysCount).map { today.minusDays((daysCount - 1 - it).toLong()) }
+
+        val dataByDay = data.associateBy { LocalDate.parse(it.day, formatter) }
+
+        return daysList.map { day ->
+            dataByDay[day] ?: DailyCalories(day.format(formatter), 0)
+        }
     }
 
     fun getWeeklyAverageCalories(): Flow<Float> {
