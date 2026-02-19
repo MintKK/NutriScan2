@@ -12,6 +12,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material3.*
@@ -36,6 +37,7 @@ fun DashboardScreen(
     onAddMealClick: () -> Unit,
     onAnalyticsClick: () -> Unit,
     onCaloriesBurnedClick: () -> Unit = {},
+    onFeedClick: () -> Unit,
     viewModel: DashboardViewModel = hiltViewModel()
 ) {
     val todayCalories by viewModel.todayCalories.collectAsState()
@@ -64,57 +66,66 @@ fun DashboardScreen(
             }
         }
     ) { padding ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            // Calorie Progress Ring
-            item {
-                CalorieProgressCard(
-                    consumed = todayCalories,
-                    goal = calorieGoal,
-                    macros = todayMacros
-                )
-            }
-            
-            // Weekly Average Card
-            item {
-                WeeklyAverageCard(average = weeklyAverage.toInt())
-            }
-            
-            // Calories Burned / Activity Card
-            item {
-                CaloriesBurnedQuickCard(
-                    steps = liveSteps,
-                    isTracking = isStepTrackingActive,
-                    onClick = onCaloriesBurnedClick
-                )
-            }
-            
-            // Today's Meals Header
-            item {
-                Text(
-                    "Today's Meals",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-            
-            // Meal List
-            if (todayMeals.isEmpty()) {
+        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // Calorie Progress Ring
                 item {
-                    EmptyMealsCard(onAddMealClick = onAddMealClick)
-                }
-            } else {
-                items(todayMeals, key = { it.id }) { meal ->
-                    MealLogItem(
-                        meal = meal,
-                        onDelete = { viewModel.deleteMeal(meal.id) }
+                    CalorieProgressCard(
+                        consumed = todayCalories,
+                        goal = calorieGoal,
+                        macros = todayMacros
                     )
                 }
+
+                // Weekly Average Card
+                item {
+                    WeeklyAverageCard(average = weeklyAverage.toInt())
+                }
+
+                // Calories Burned / Activity Card
+                item {
+                    CaloriesBurnedQuickCard(
+                        steps = liveSteps,
+                        isTracking = isStepTrackingActive,
+                        onClick = onCaloriesBurnedClick
+                    )
+                }
+
+                // Today's Meals Header
+                item {
+                    Text(
+                        "Today's Meals",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                // Meal List
+                if (todayMeals.isEmpty()) {
+                    item {
+                        EmptyMealsCard(onAddMealClick = onAddMealClick)
+                    }
+                } else {
+                    items(todayMeals, key = { it.id }) { meal ->
+                        MealLogItem(
+                            meal = meal,
+                            onDelete = { viewModel.deleteMeal(meal.id) }
+                        )
+                    }
+                }
+            }
+
+            FloatingActionButton(
+                onClick = onFeedClick,
+                modifier = Modifier.align(Alignment.BottomStart).padding(16.dp)
+            ) {
+                Icon(Icons.Default.List, contentDescription = "Feed")
             }
         }
     }
