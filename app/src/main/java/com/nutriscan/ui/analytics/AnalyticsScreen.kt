@@ -35,6 +35,7 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.nutriscan.data.local.dao.DailyCalories
+import com.nutriscan.data.local.dao.DailyNetCalories
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -43,8 +44,8 @@ fun AnalyticsScreen(
     onBack: () -> Unit,
     viewModel: AnalyticsViewModel = hiltViewModel()
 ) {
-    val last7Days by viewModel.last7DaysCalories.collectAsState()
-    val weeklyAverage by viewModel.weeklyAverage.collectAsState()
+    val last7Days by viewModel.last7DaysNet.collectAsState()
+    val weeklyAverage by viewModel.weeklyAverageNet.collectAsState()
     val targetCalories by viewModel.getTargetCalories.collectAsState()
     
     Scaffold(
@@ -148,7 +149,7 @@ fun AnalyticsScreen(
             
             // Trend Chart
             Text(
-                "Last 7 Days",
+                "Last 7 Days kcal/day",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )
@@ -198,7 +199,7 @@ fun AnalyticsScreen(
 
 @Composable
 fun CalorieTrendChart(
-    data: List<DailyCalories>,
+    data: List<DailyNetCalories>,
     targetCalorie: Int,
     modifier: Modifier = Modifier
 ) {
@@ -239,7 +240,7 @@ fun CalorieTrendChart(
                     .fillMaxSize()
                     .padding(16.dp)
             ) {
-                val maxDataValue = data.maxOfOrNull { it.totalKcal }?.toFloat() ?: 0f
+                val maxDataValue = data.maxOfOrNull { it.netKcal }?.toFloat() ?: 0f
                 val maxValue = maxOf(maxDataValue, targetCalorie.toFloat()).coerceAtLeast(1f)
                 val width = size.width
                 val height = size.height
@@ -268,14 +269,14 @@ fun CalorieTrendChart(
                 
                 // Draw bars
                 data.forEachIndexed { index, daily ->
-                    val fullBarHeight = (daily.totalKcal / maxValue) * chartHeight
+                    val fullBarHeight = (daily.netKcal / maxValue) * chartHeight
                     val barHeight = fullBarHeight * animationProgress
                     val centerX = index * spacing + spacing / 2f
                     val x = centerX - barWidth / 2f
                     val y = chartBottom - barHeight
 
                     drawRoundRect(
-                        color = if (daily.totalKcal < targetCalorie)
+                        color = if (daily.netKcal < targetCalorie)
                             Color(0xFF80C583)
                         else
                             Color(0xFFB87777),
@@ -300,7 +301,7 @@ fun CalorieTrendChart(
                         color = graphTextColor
                     )
                     val deviationPercent = targetCalorie.takeIf { it != 0 }
-                        ?.let { ((daily.totalKcal - it).toFloat() / it) * 100f }
+                        ?.let { ((daily.netKcal - it).toFloat() / it) * 100f }
                         ?: 0f
 
                     val formattedDeviation =
@@ -335,7 +336,7 @@ fun CalorieTrendChart(
                     val path = Path()
                     val points = data.mapIndexed { index, daily ->
                         val centerX = index * spacing + spacing / 2f
-                        val y = chartBottom - (daily.totalKcal / maxValue) * chartHeight
+                        val y = chartBottom - (daily.netKcal / maxValue) * chartHeight
                         Offset(centerX, y)
                     }
 
@@ -440,7 +441,7 @@ fun CalorieTrendChart(
 }
 
 @Composable
-fun DailyCalorieRow(day: DailyCalories, targetCalories: Int) {
+fun DailyCalorieRow(day: DailyNetCalories, targetCalories: Int) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(8.dp)
@@ -460,14 +461,14 @@ fun DailyCalorieRow(day: DailyCalories, targetCalories: Int) {
             Box(
                 modifier = Modifier.wrapContentWidth()
                     .background(
-                        color = if (day.totalKcal > targetCalories) Color(0x80B77676)
+                        color = if (day.netKcal > targetCalories) Color(0x80B77676)
                         else Color.Transparent,
                         shape = RoundedCornerShape(16.dp)
                     ).padding(horizontal = 12.dp, vertical = 6.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    "${day.totalKcal} kcal",
+                    "${day.netKcal} kcal",
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Medium,
                     color = MaterialTheme.colorScheme.primary

@@ -45,7 +45,7 @@ fun DashboardScreen(
     val calorieGoal by viewModel.calorieGoal.collectAsState()
     val todayMacros by viewModel.todayMacros.collectAsState()
     val todayMeals by viewModel.todayMeals.collectAsState()
-    val weeklyAverage by viewModel.weeklyAverage.collectAsState()
+    val weeklyAverage by viewModel.weeklyAverageNet.collectAsState()
     val liveSteps by viewModel.liveSteps.collectAsState()
     val isStepTrackingActive by viewModel.isStepTrackingActive.collectAsState()
     

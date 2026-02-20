@@ -2,8 +2,11 @@ package com.nutriscan.ui.dashboard
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.nutriscan.data.local.dao.DailyCalories
+import com.nutriscan.data.local.dao.DailyNetCalories
 import com.nutriscan.data.local.dao.MacroTotals
 import com.nutriscan.data.local.entity.MealLog
+import com.nutriscan.data.local.entity.StepLog
 import com.nutriscan.data.repository.MealRepository
 import com.nutriscan.data.repository.StepRepository
 import com.nutriscan.sensor.StepCounterService
@@ -14,6 +17,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -61,7 +65,7 @@ class DashboardViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 70) // 70 as default weight
 
     /** Calories burnt from physical activity*/
-    val caloriesBurned: StateFlow<Double> = combine(liveSteps, userWeight) { steps, weight ->
+    val caloriesBurned: StateFlow<Double> = combine(todaySteps, userWeight) { steps, weight ->
         val multiplier = when {
             weight >= 86 -> 0.55
             weight >= 70 -> 0.45
@@ -84,4 +88,45 @@ class DashboardViewModel @Inject constructor(
             mealRepository.deleteLog(id)
         }
     }
+
+    // Displaying weekly average WITH burned kcal
+    val last7DaysCalories: StateFlow<List<DailyCalories>> = mealRepository.getLast7DaysCalories()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val last7DaysSteps: StateFlow<List<StepLog>> = stepRepository.getStepsForWeek()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    /**Takes into account burned calories**/
+    val last7DaysNet: StateFlow<List<DailyNetCalories>> =
+        combine(last7DaysSteps, userWeight, last7DaysCalories) { stepLogs, weight, calorieLogs ->
+
+            // Map steps by date for fast lookup
+            val stepsByDate = stepLogs.associateBy { it.date }
+
+            calorieLogs.map { dailyCalories ->
+                val stepsForDay = stepsByDate[dailyCalories.day]?.steps ?: 0
+                val burned = when {
+                    weight >= 86 -> stepsForDay * 0.55
+                    weight >= 70 -> stepsForDay * 0.45
+                    else -> stepsForDay * 0.35
+                }
+
+                DailyNetCalories(
+                    day = dailyCalories.day,
+                    eatenKcal = dailyCalories.totalKcal,
+                    burnedKcal = burned.toInt(),
+                    netKcal = dailyCalories.totalKcal - burned.toInt()
+                )
+            }
+        }
+            .stateIn(viewModelScope,SharingStarted.WhileSubscribed(5000),emptyList())
+
+    /**Takes into account burned calories**/
+    val weeklyAverageNet: StateFlow<Float> =
+        last7DaysNet
+            .map { days ->
+                val daysWithMeals = days.filter { it.eatenKcal > 0 } // only count days with meals
+                if (daysWithMeals.isEmpty()) 0f
+                else daysWithMeals.sumOf { it.netKcal }.toFloat() / daysWithMeals.size
+            }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0f)
 }
