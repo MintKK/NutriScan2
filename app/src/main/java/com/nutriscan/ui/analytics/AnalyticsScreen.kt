@@ -252,7 +252,10 @@ fun CalorieTrendChart(
                         ),
                         color = graphTextColor
                     )
-                    val deviationPercent = ((daily.totalKcal - targetCalorie).toFloat() / targetCalorie) * 100f
+                    val deviationPercent = targetCalorie.takeIf { it != 0 }
+                        ?.let { ((daily.totalKcal - it).toFloat() / it) * 100f }
+                        ?: 0f
+
                     val formattedDeviation =
                         if (deviationPercent <= -100f) {
                             ""   // hide -100%
