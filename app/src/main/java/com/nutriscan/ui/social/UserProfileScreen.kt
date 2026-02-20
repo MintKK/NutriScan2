@@ -58,22 +58,24 @@ fun UserProfileScreen(
     onSignOut: () -> Unit,
     viewModel: UserProfileViewModel = hiltViewModel()
 ) {
-    val userProfile by viewModel.userProfile.collectAsState()
-    val userPosts by viewModel.userPosts.collectAsState()
-    val isLoading by viewModel.isLoading.collectAsState()
-    val isFollowing by viewModel.isFollowing.collectAsState()
-    val error by viewModel.error.collectAsState()
-    val followersCount by viewModel.followersCount.collectAsState()
-    val followingCount by viewModel.followingCount.collectAsState()
-    val postsCount by viewModel.postsCount.collectAsState()
+    val userProfile by viewModel.userProfile.collectAsState()       // User data class
+    val userPosts by viewModel.userPosts.collectAsState()           // list of User's Posts
+    val isLoading by viewModel.isLoading.collectAsState()           // loading progress
+    val isFollowing by viewModel.isFollowing.collectAsState()       // boolean for whether following this User
+    val error by viewModel.error.collectAsState()                   // error message
+    val followersCount by viewModel.followersCount.collectAsState() // num of followers for this User
+    val followingCount by viewModel.followingCount.collectAsState() // num of following for this User
+    val postsCount by viewModel.postsCount.collectAsState()         // num of posts for this User
 
-    // Get current user ID from SocialViewModel
+    // get current user ID from SocialViewModel
+    // to tell if this user profile is their own profile
     val socialViewModel: SocialViewModel = hiltViewModel()
-    val currentUserId by socialViewModel.currentUser.collectAsState()
+    val currentUserID by socialViewModel.currentUser.collectAsState()
 
-    // Determine if this is the current user's profile
-    val isCurrentUser = currentUserId?.uid == userID
+    // determine if this is the current user's profile
+    val isCurrentUser = currentUserID?.uid == userID
 
+    // call sign out and navigate
     val handleSignOut = {
         socialViewModel.signOut()
         onSignOut()
@@ -134,12 +136,13 @@ fun UserProfileScreen(
                 }
             }
         } else {
+
+            // successful loading of user profile
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding)
             ) {
-                // Profile Header
                 item {
                     ProfileHeader(
                         userProfile = userProfile,
@@ -159,15 +162,16 @@ fun UserProfileScreen(
                     )
                 }
 
-                // User's Posts
+                // list of user's posts
                 items(
                     items = userPosts,
                     key = { it.postID }
-                ) { post ->
+                ) {
+                    post ->
                     ProfilePostItem(post = post)
                 }
 
-                // Empty state
+                // if user didnt post then show this
                 if (userPosts.isEmpty() && !isLoading) {
                     item {
                         Box(
@@ -203,12 +207,11 @@ fun ProfileHeader(
     Column(
         modifier = Modifier.fillMaxWidth().padding(16.dp)
     ) {
-        // Profile Image and Stats Row
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Profile Image
+            // user profile picture
             Surface(
                 modifier = Modifier.size(80.dp).clip(CircleShape),
                 color = MaterialTheme.colorScheme.primaryContainer
@@ -230,7 +233,7 @@ fun ProfileHeader(
 
             Spacer(modifier = Modifier.width(16.dp))
 
-            // Stats
+            // user stats
             Row(
                 modifier = Modifier.weight(1f),
                 horizontalArrangement = Arrangement.SpaceEvenly
@@ -243,18 +246,20 @@ fun ProfileHeader(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // User Info
+        // user display name
         Text(
             text = userProfile?.displayname ?: "Unknown User",
             fontWeight = FontWeight.Bold,
             fontSize = MaterialTheme.typography.titleLarge.fontSize
         )
 
+        // user app username
         Text(
             text = "@${userProfile?.username ?: "username"}",
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
+        // user bio
         if (userProfile?.bio?.isNotEmpty() == true) {
             Spacer(modifier = Modifier.height(8.dp))
             Text(
@@ -265,6 +270,7 @@ fun ProfileHeader(
 
         Spacer(modifier = Modifier.height(16.dp))
 
+        // show sign out button if profile is current user
         if (isCurrentUser) {
             Button(
                 onClick = onSignOut,
@@ -273,7 +279,9 @@ fun ProfileHeader(
             ) {
                 Text("Sign Out")
             }
-        } else {
+        }
+        // else show the following button
+        else {
             Button(
                 onClick = onFollowClick,
                 modifier = Modifier.fillMaxWidth(),

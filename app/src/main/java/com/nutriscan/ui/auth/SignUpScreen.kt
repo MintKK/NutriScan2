@@ -44,27 +44,27 @@ fun SignUpScreen(
     onBack: () -> Unit,
     viewModel: SocialViewModel = hiltViewModel()
 ) {
+    // input fields
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
     var username by remember { mutableStateOf("") }
     var displayName by remember { mutableStateOf("") }
-    val isLoading by viewModel.isLoading.collectAsState()
-    val error by viewModel.error.collectAsState()
-    val isSignUpSuccessful by viewModel.isSignUpSuccessful.collectAsState()
-    val authState by viewModel.authState.collectAsState()
 
-    var passwordError by remember { mutableStateOf<String?>(null) }
+    val isLoading by viewModel.isLoading.collectAsState()                   // loading progress
+    val error by viewModel.error.collectAsState()                           // error message
+    val isSignUpSuccessful by viewModel.isSignUpSuccessful.collectAsState() // boolean for sign up state
+    val authState by viewModel.authState.collectAsState()                   // authentication state
+    var passwordError by remember { mutableStateOf<String?>(null) } // password error message
 
+    // clear errors and flags
     LaunchedEffect(Unit) {
         viewModel.clearError()
         viewModel.resetSuccessFlags()
-        android.util.Log.d("SignUpScreen", "Screen initialized")
     }
 
+    // for when successful sign up
     LaunchedEffect(isSignUpSuccessful, authState) {
-        android.util.Log.d("SignUpScreen", "Effect triggered - isSignUpSuccessful: $isSignUpSuccessful, authState: $authState")
-
         if (isSignUpSuccessful || authState == SocialViewModel.AuthState.AUTHENTICATED) {
             android.util.Log.d("SignUpScreen", "Navigation condition met, navigating to feed")
             viewModel.resetSuccessFlags()
@@ -98,6 +98,7 @@ fun SignUpScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
 
+            // username (e.g. @hino)
             OutlinedTextField(
                 value = username,
                 onValueChange = { username = it },
@@ -108,6 +109,7 @@ fun SignUpScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
+            // displayname (name to show in posts and comments)
             OutlinedTextField(
                 value = displayName,
                 onValueChange = { displayName = it },
@@ -118,6 +120,7 @@ fun SignUpScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
+            // email
             OutlinedTextField(
                 value = email,
                 onValueChange = { email = it },
@@ -128,6 +131,7 @@ fun SignUpScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
+            // password
             OutlinedTextField(
                 value = password,
                 onValueChange = {
@@ -157,6 +161,7 @@ fun SignUpScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
+            // password confirmation
             OutlinedTextField(
                 value = confirmPassword,
                 onValueChange = { confirmPassword = it },
@@ -178,6 +183,7 @@ fun SignUpScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
+            // sign up button
             Button(
                 onClick = {
                     if (password == confirmPassword && passwordError == null) {
@@ -204,6 +210,7 @@ fun SignUpScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
+            // navigate back to sign in screen
             TextButton(onClick = onNavigateToSignIn) {
                 Text("Already have an account? Sign In")
             }

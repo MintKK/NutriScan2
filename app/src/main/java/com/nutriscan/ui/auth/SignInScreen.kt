@@ -44,18 +44,22 @@ fun SignInScreen(
     onBack: () -> Unit,
     viewModel: SocialViewModel = hiltViewModel()
 ) {
+    // input fields
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
-    val isLoading by viewModel.isLoading.collectAsState()
-    val error by viewModel.error.collectAsState()
-    val isSignInSuccessful by viewModel.isSignInSuccessful.collectAsState()
-    val authState by viewModel.authState.collectAsState()
 
+    val isLoading by viewModel.isLoading.collectAsState()                   // loading progress
+    val error by viewModel.error.collectAsState()                           // error message
+    val isSignInSuccessful by viewModel.isSignInSuccessful.collectAsState() // boolean for sign in state
+    val authState by viewModel.authState.collectAsState()                   // authentication state
+
+    // clear errors and flags
     LaunchedEffect(Unit) {
         viewModel.clearError()
         viewModel.resetSuccessFlags()
     }
 
+    // for when successful sign in
     LaunchedEffect(isSignInSuccessful, authState) {
         if (isSignInSuccessful || authState == SocialViewModel.AuthState.AUTHENTICATED) {
             android.util.Log.d("SignInScreen", "Sign in successful, navigating to feed")
@@ -90,6 +94,7 @@ fun SignInScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
 
+            // email text field
             OutlinedTextField(
                 value = email,
                 onValueChange = { email = it },
@@ -100,6 +105,7 @@ fun SignInScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
+            // password text field
             OutlinedTextField(
                 value = password,
                 onValueChange = { password = it },
@@ -109,6 +115,7 @@ fun SignInScreen(
                 visualTransformation = PasswordVisualTransformation()
             )
 
+            // display error message if there is one
             if (error != null) {
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
@@ -120,6 +127,7 @@ fun SignInScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
+            // sign in button
             Button(
                 onClick = {
                     viewModel.signIn(email, password)
@@ -139,14 +147,14 @@ fun SignInScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
+            // return to previous screen
             TextButton(onClick = onBack) {
                 Text("Go Back")
             }
 
+            // navigate to sign up screen
             TextButton(
                 onClick = {
-                    // You'll need to pass this navigation callback from NavHost
-                    // For now, we'll assume it's passed as a parameter
                     onNavigateToSignUp()
                 }
             ) {

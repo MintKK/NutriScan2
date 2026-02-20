@@ -129,6 +129,7 @@ fun FeedScreen(
         padding ->
 
         when {
+            // error message exist
             error != null -> {
                 ErrorScreen(
                     error = error!!,
@@ -143,7 +144,7 @@ fun FeedScreen(
                 )
             }
 
-            // Will be loading
+            // will be loading
             isLoading && posts.isEmpty() -> {
                 Box(
                     modifier = Modifier.fillMaxSize().padding(padding),
@@ -160,7 +161,7 @@ fun FeedScreen(
                 }
             }
 
-            // Not loading
+            // not loading
             !isLoading && posts.isEmpty() && authState == SocialViewModel.AuthState.AUTHENTICATED -> {
                 Box(
                     modifier = Modifier.fillMaxSize().padding(padding),
@@ -232,12 +233,12 @@ fun PostCard(
         Column(
             modifier = Modifier.fillMaxWidth()
         ) {
-            // User info row
+            // user info row
             Row(
                 modifier = Modifier.fillMaxWidth().padding(12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Profile image
+                // user profile image
                 Surface(
                     modifier = Modifier.size(40.dp).clip(CircleShape).clickable() { onProfileClick() },
                     color = MaterialTheme.colorScheme.primaryContainer
@@ -273,7 +274,7 @@ fun PostCard(
                     )
                 }
 
-                // Food name chip
+                // food name chip
                 Surface(
                     shape = RoundedCornerShape(16.dp),
                     color = MaterialTheme.colorScheme.primaryContainer
@@ -286,7 +287,7 @@ fun PostCard(
                 }
             }
 
-            // Post image
+            // post image
             Image(
                 painter = rememberAsyncImagePainter(post.foodImageUrl),
                 contentDescription = "Food",
@@ -294,7 +295,7 @@ fun PostCard(
                 contentScale = ContentScale.Crop
             )
 
-            // Caption
+            // caption
             if (post.caption.isNotEmpty()) {
                 Text(
                     text = post.caption,
@@ -302,7 +303,7 @@ fun PostCard(
                 )
             }
 
-            // Nutrition info
+            // nutrition info
             Surface(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
                 shape = RoundedCornerShape(8.dp),
@@ -319,11 +320,12 @@ fun PostCard(
                 }
             }
 
-            // Action buttons
+            // action buttons
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
                 horizontalArrangement = Arrangement.SpaceAround
             ) {
+                // like button
                 IconButton(onClick = onLikeClick) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
@@ -336,6 +338,7 @@ fun PostCard(
                     }
                 }
 
+                // comment button
                 IconButton(onClick = onCommentClick) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
@@ -347,6 +350,7 @@ fun PostCard(
                     }
                 }
 
+                // share button
                 IconButton(onClick = { /* Share */ }) {
                     Icon(
                         Icons.Default.Share,
@@ -443,7 +447,7 @@ fun ErrorScreen(
                 Spacer(modifier = Modifier.height(8.dp))
                 OutlinedButton(
                     onClick = {
-                        // Add a test sign-in for development
+                        // test sign-in for development
                         viewModel.signInForTesting()
                     }
                 ) {

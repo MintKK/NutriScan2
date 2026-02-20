@@ -76,7 +76,6 @@ class UserProfileViewModel @Inject constructor(
     private fun loadUserPosts() {
         viewModelScope.launch {
             try {
-                // You'll need to add this function to your repository
                 socialRepository.getUserPosts(userID = userID)
                     .catch {
                         e ->

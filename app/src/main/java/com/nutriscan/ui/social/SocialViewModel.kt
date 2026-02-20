@@ -60,8 +60,6 @@ class SocialViewModel @Inject constructor(
     val isSignUpSuccessful: StateFlow<Boolean> = _isSignUpSuccessful.asStateFlow()
 
     init {
-        //loadFeed() dont load immediately anymore since adb cannot test
-
         checkAuthState()
         checkFirebaseAvailability()
     }
@@ -167,23 +165,6 @@ class SocialViewModel @Inject constructor(
         _error.value = message
     }
 
-//    private fun checkAuthState() {
-//        viewModelScope.launch {
-//            auth.addAuthStateListener { firebaseAuth ->
-//                _authState.value = if (firebaseAuth.currentUser != null) {
-//                    AuthState.AUTHENTICATED
-//                } else {
-//                    AuthState.UNAUTHENTICATED
-//                }
-//
-//                // If authenticated, try to load feed
-//                if (firebaseAuth.currentUser != null) {
-//                    loadFeed()
-//                }
-//            }
-//        }
-//    }
-
     fun checkFirebaseAvailability() {
         viewModelScope.launch {
             _isLoading.value = true
@@ -203,7 +184,7 @@ class SocialViewModel @Inject constructor(
                     return@launch
                 }
 
-                // Check if user is authenticated
+                // check if user is authenticated
                 if (auth.currentUser == null) {
                     _error.value = "Please sign in to view the feed"
                     _isLoading.value = false
@@ -236,12 +217,7 @@ class SocialViewModel @Inject constructor(
                 _isLoading.value = true
                 _error.value = null
 
-                android.util.Log.d("SocialViewModel", "Attempting sign in with email: $email")
-
-                val result = auth.signInWithEmailAndPassword(email, password).await()
-
-                android.util.Log.d("SocialViewModel", "Sign in successful: ${result.user?.uid}")
-
+                auth.signInWithEmailAndPassword(email, password).await()
                 _error.value = null
                 _isSignInSuccessful.value = true
             } catch (e: FirebaseAuthInvalidUserException) {
@@ -265,14 +241,10 @@ class SocialViewModel @Inject constructor(
                 _isLoading.value = true
                 _error.value = null
 
-                android.util.Log.d("SocialViewModel", "Attempting sign up with email: $email")
-
                 val result = auth.createUserWithEmailAndPassword(email, password).await()
                 val firebaseUser = result.user ?: throw Exception("Failed to create user")
 
-                android.util.Log.d("SocialViewModel", "Firebase user created: ${firebaseUser.uid}")
-
-                // Create user profile in Firestore
+                // create user profile in Firestore
                 val user = User(
                     uid = firebaseUser.uid,
                     username = username,
@@ -345,43 +317,6 @@ class SocialViewModel @Inject constructor(
         UNAUTHENTICATED
     }
 
-//    private fun observeAuthState() {
-//        viewModelScope.launch {
-//            auth.authStateChanges().collect {
-//                firebaseUser ->
-//                _isAuthenticated.value = firebaseUser != null
-//                _authState.value =
-//                    if (firebaseUser != null) {
-//                        AuthState.AUTHENTICATED
-//                    } else {
-//                        AuthState.UNAUTHENTICATED
-//                    }
-//
-//                if (firebaseUser != null) {
-//                    // Clear any auth-related errors
-//                    if (_error.value == "Please sign in to view the feed" ||
-//                        _error.value?.contains("sign in") == true) {
-//                        _error.value = null
-//                    }
-//
-//                    // Load feed
-//                    loadFeed()
-//                }
-//            }
-//        }
-//    }
-//
-//    private fun FirebaseAuth.authStateChanges(): Flow<FirebaseUser?> = callbackFlow {
-//        val listener = FirebaseAuth.AuthStateListener {
-//            auth ->
-//            trySend(auth.currentUser)
-//        }
-//        addAuthStateListener(listener)
-//        awaitClose {
-//            removeAuthStateListener(listener)
-//        }
-//    }
-
     private fun checkAuthState() {
         authStateListener?.let { auth.removeAuthStateListener(it) }
 
@@ -424,16 +359,16 @@ class SocialViewModel @Inject constructor(
                 _isLoading.value = true
                 _error.value = null
 
-                // Sign in anonymously
+                // sign in anonymously
                 val result = auth.signInAnonymously().await()
 
-                // Check if we need to create a user profile
+                // check if we need to create a user profile
                 val currentUser = result.user
                 if (currentUser != null) {
-                    // Check if user profile exists in Firestore
+                    // check if user profile exists in Firestore
                     val userProfile = socialRepository.getUserProfile(currentUser.uid).getOrNull()
                     if (userProfile == null) {
-                        // Create a basic profile for anonymous user
+                        // create a basic profile for anonymous user
                         val anonymousUser = User(
                             uid = currentUser.uid,
                             username = "Anonymous${currentUser.uid.takeLast(4)}",
