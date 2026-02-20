@@ -8,15 +8,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.Male
 import androidx.compose.material.icons.filled.Man
-import androidx.compose.material.icons.filled.Man3
-import androidx.compose.material.icons.filled.Timer
-import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -71,6 +67,17 @@ fun CalorieTargetScreen(
     val recommendedCalories by remember(weightString, heightString, ageString, isFemale) {
         derivedStateOf {
             CalculateBMICalorie(!isFemale, weightString, heightString, ageString)
+        }
+    }
+    // Whenever user change parameters, clear whatever custom they have (for saving to repo logic)
+    LaunchedEffect(recommendedCalories) {
+        customCaloriesInput = ""
+    }
+
+    // Fix to show what user is typing when entering custom kcal
+    LaunchedEffect(recommendedCalories) {
+        if (customCaloriesInput.isEmpty()) {
+            customCaloriesInput = recommendedCalories.toString()
         }
     }
 
@@ -234,13 +241,13 @@ fun CalorieTargetScreen(
                 fontWeight = FontWeight.Bold
             )
 
-
             OutlinedTextField(
-                value = if (customCaloriesInput.isEmpty()) recommendedCalories else customCaloriesInput,
+                value = customCaloriesInput,
                 onValueChange = { input ->
                     customCaloriesInput = input.filter { it.isDigit() }
                     targetSaved = false
                 },
+
                 label = { Text("Custom (kcal)") },
                 keyboardOptions = KeyboardOptions(
                     keyboardType = KeyboardType.Number,
@@ -256,7 +263,8 @@ fun CalorieTargetScreen(
             ) {
                 Button(
                     onClick = {
-                        UpdateDataStore(viewModel, recommendedCalories,isFemale, weightString,heightString,ageString)
+                        // Saves custom if user edited themselves, else use the autocalc from setting parameters (gender,age..)
+                        UpdateDataStore(viewModel, if (customCaloriesInput.isEmpty()) recommendedCalories else customCaloriesInput,isFemale, weightString,heightString,ageString)
                         targetSaved = true
                     },
                     enabled = !targetSaved
