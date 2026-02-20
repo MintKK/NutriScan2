@@ -64,9 +64,9 @@ class CaloriesBurnedViewModel @Inject constructor(
     val foodCalories: Flow<Int> = mealRepository.getTodayTotalCalories()
 
     /** Total calories today*/
-    val netCalories: StateFlow<Int> = combine(foodCalories, caloriesBurned) { food, burned ->
-        (food - burned).toInt()
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+    val netCalories: StateFlow<Double> = combine(foodCalories, caloriesBurned) { food, burned ->
+        food.toDouble() - burned
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
 //    val remainingCalories: StateFlow<Int> = combine()
 
