@@ -2,15 +2,52 @@ package com.nutriscan.ui.social
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Comment
+import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.Login
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -23,13 +60,16 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.rememberAsyncImagePainter
 import com.nutriscan.data.remote.models.Post
 import java.text.SimpleDateFormat
-import java.util.*
+import java.util.Date
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FeedScreen(
     onNavigateToCreatePost: () -> Unit,
     onNavigateToProfile: (String) -> Unit,
+    onNavigateToSignIn: () -> Unit,
+    onSignOut: () -> Unit,
     onBack: () -> Unit,
     viewModel: SocialViewModel = hiltViewModel()
 ) {
@@ -37,6 +77,8 @@ fun FeedScreen(
     val isLoading by viewModel.isLoading.collectAsState()
     val currentUser by viewModel.currentUser.collectAsState()
     val error by viewModel.error.collectAsState()
+    val firebaseAvailable by viewModel.firebaseAvailable.collectAsState()
+    val authState by viewModel.authState.collectAsState()
 
     LaunchedEffect(Unit) {
         // Check if Firebase is available
@@ -46,50 +88,90 @@ fun FeedScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Food Forum") },
+                title = { Text("Food Feed") },
                 actions = {
                     IconButton(onClick = {
                         /* Open search */
                     }) {
                         Icon(Icons.Default.Search, contentDescription = "Search")
                     }
-                    IconButton(onClick = {
-                        onNavigateToProfile(currentUser?.uid ?: "")
-                    }) {
-                        Icon(Icons.Default.Person, contentDescription = "Profile")
+                    if (authState == SocialViewModel.AuthState.AUTHENTICATED) {
+                        IconButton(
+                            onClick = {
+                                if (currentUser != null) {
+                                    onNavigateToProfile(currentUser!!.uid)
+                                }
+                            }
+                        ) {
+                            Icon(Icons.Default.Person, contentDescription = "Profile")
+                        }
+                    } else {
+                        IconButton(
+                            onClick = onNavigateToSignIn
+                        ) {
+                            Icon(Icons.Default.Login, contentDescription = "Sign In")
+                        }
                     }
                 }
             )
         },
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = onNavigateToCreatePost,
-                containerColor = MaterialTheme.colorScheme.primary
-            ) {
-                Icon(Icons.Default.Add, contentDescription = "Create Post")
+            if (authState == SocialViewModel.AuthState.AUTHENTICATED) {
+                FloatingActionButton(
+                    onClick = onNavigateToCreatePost,
+                    containerColor = MaterialTheme.colorScheme.primary
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = "Create Post")
+                }
             }
         }
     ) {
         padding ->
 
         when {
+            // error message exist
             error != null -> {
                 ErrorScreen(
                     error = error!!,
                     onRetry = {
                         viewModel.clearError()
                         viewModel.checkFirebaseAvailability()
-                      },
+                    },
+                    onSignIn = onNavigateToSignIn,
+                    isAuthenticated = (authState == SocialViewModel.AuthState.AUTHENTICATED),
+                    viewModel = viewModel,
                     modifier = Modifier.padding(padding)
                 )
             }
 
+            // will be loading
             isLoading && posts.isEmpty() -> {
                 Box(
                     modifier = Modifier.fillMaxSize().padding(padding),
                     contentAlignment = Alignment.Center
                 ) {
-                    CircularProgressIndicator()
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        CircularProgressIndicator()
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = "Connecting...",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+
+            // not loading
+            !isLoading && posts.isEmpty() && authState == SocialViewModel.AuthState.AUTHENTICATED -> {
+                Box(
+                    modifier = Modifier.fillMaxSize().padding(padding),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "No posts yet. Follow some users or create your first post!",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
 
@@ -109,10 +191,15 @@ fun FeedScreen(
                         PostCard(
                             post = post,
                             onLikeClick = {
-                                if (isLiked) {
-                                    viewModel.unlikePost(post.postID)
+                                if (authState == SocialViewModel.AuthState.AUTHENTICATED) {
+                                    if (isLiked) {
+                                        viewModel.unlikePost(post.postID)
+                                    } else {
+                                        viewModel.likePost(post.postID)
+                                    }
                                 } else {
-                                    viewModel.likePost(post.postID)
+                                    // Show sign in prompt
+                                    viewModel.setError("Please sign in to like posts")
                                 }
                             },
                             onCommentClick = {
@@ -146,12 +233,12 @@ fun PostCard(
         Column(
             modifier = Modifier.fillMaxWidth()
         ) {
-            // User info row
+            // user info row
             Row(
                 modifier = Modifier.fillMaxWidth().padding(12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Profile image
+                // user profile image
                 Surface(
                     modifier = Modifier.size(40.dp).clip(CircleShape).clickable() { onProfileClick() },
                     color = MaterialTheme.colorScheme.primaryContainer
@@ -187,7 +274,7 @@ fun PostCard(
                     )
                 }
 
-                // Food name chip
+                // food name chip
                 Surface(
                     shape = RoundedCornerShape(16.dp),
                     color = MaterialTheme.colorScheme.primaryContainer
@@ -200,7 +287,7 @@ fun PostCard(
                 }
             }
 
-            // Post image
+            // post image
             Image(
                 painter = rememberAsyncImagePainter(post.foodImageUrl),
                 contentDescription = "Food",
@@ -208,7 +295,7 @@ fun PostCard(
                 contentScale = ContentScale.Crop
             )
 
-            // Caption
+            // caption
             if (post.caption.isNotEmpty()) {
                 Text(
                     text = post.caption,
@@ -216,7 +303,7 @@ fun PostCard(
                 )
             }
 
-            // Nutrition info
+            // nutrition info
             Surface(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
                 shape = RoundedCornerShape(8.dp),
@@ -233,11 +320,12 @@ fun PostCard(
                 }
             }
 
-            // Action buttons
+            // action buttons
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
                 horizontalArrangement = Arrangement.SpaceAround
             ) {
+                // like button
                 IconButton(onClick = onLikeClick) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
@@ -250,6 +338,7 @@ fun PostCard(
                     }
                 }
 
+                // comment button
                 IconButton(onClick = onCommentClick) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
@@ -261,6 +350,7 @@ fun PostCard(
                     }
                 }
 
+                // share button
                 IconButton(onClick = { /* Share */ }) {
                     Icon(
                         Icons.Default.Share,
@@ -292,6 +382,9 @@ fun NutritionInfo(label: String, value: String) {
 fun ErrorScreen(
     error: String,
     onRetry: () -> Unit,
+    onSignIn: () -> Unit,
+    isAuthenticated: Boolean,
+    viewModel: SocialViewModel = hiltViewModel(),
     modifier: Modifier = Modifier
 ) {
     Box(
@@ -303,14 +396,14 @@ fun ErrorScreen(
             verticalArrangement = Arrangement.Center
         ) {
             Icon(
-                Icons.Default.Error,
+                imageVector = Icons.Default.Error,
                 contentDescription = null,
                 modifier = Modifier.size(64.dp),
                 tint = MaterialTheme.colorScheme.error
             )
             Spacer(modifier = Modifier.height(16.dp))
             Text(
-                text = "Firebase Error",
+                text = "Unable to Load Feed",
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold
             )
@@ -322,7 +415,21 @@ fun ErrorScreen(
                 modifier = Modifier.padding(horizontal = 32.dp)
             )
             Spacer(modifier = Modifier.height(24.dp))
-            if (error.contains("Google Play Services", ignoreCase = true)) {
+
+            if (!isAuthenticated) {
+                Button(onClick = onSignIn) {
+                    Text("Sign In")
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                TextButton(onClick = onRetry) {
+                    Text("Retry Connection")
+                }
+            } else if (error.contains("timeout", ignoreCase = true) ||
+                error.contains("connection", ignoreCase = true)) {
+                Button(onClick = onRetry) {
+                    Text("Retry")   
+                }
+            } else if (error.contains("Google Play Services", ignoreCase = true)) {
                 Text(
                     text = "This app requires Google Play Services.\n" +
                             "Please run on a device/emulator with Google Play.",
@@ -333,6 +440,18 @@ fun ErrorScreen(
             } else {
                 Button(onClick = onRetry) {
                     Text("Retry")
+                }
+            }
+
+            if (!isAuthenticated && error.contains("sign in", ignoreCase = true)) {
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedButton(
+                    onClick = {
+                        // test sign-in for development
+                        viewModel.signInForTesting()
+                    }
+                ) {
+                    Text("Test Sign In (Dev Only)")
                 }
             }
         }
