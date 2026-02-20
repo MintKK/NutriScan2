@@ -29,30 +29,46 @@ class SocialViewModel @Inject constructor(
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
 
+    private val _firebaseAvailable = MutableStateFlow<Boolean?>(null)
+    val firebaseAvailable: StateFlow<Boolean?> = _firebaseAvailable.asStateFlow()
+
     val currentUser: StateFlow<User?> = socialRepository.getCurrentUser()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     init {
         //loadFeed() dont load immediately anymore since adb cannot test
+        checkFirebaseAvailability()
     }
 
     fun loadFeed() {
         viewModelScope.launch {
-            _isLoading.value = true
+            if (_feedPosts.value.isEmpty()) {
+                _isLoading.value = true
+            }
+
             try {
-                val currentUserId = auth.currentUser?.uid ?: return@launch
+                val currentUserId = auth.currentUser?.uid
+                if (currentUserId == null) {
+                    _error.value = "User not authenticated"
+                    _isLoading.value = false
+
+                    return@launch
+                }
+
                 socialRepository.getFeedPosts(currentUserId)
                     .catch {
                         e ->
-                        _error.value = e.message
+                        _error.value = "Failed to load feed: ${e.message}"
+                        _isLoading.value = false
                     }
                     .collect {
                         posts ->
                         _feedPosts.value = posts
                         _isLoading.value = false
+                        _error.value = null
                     }
             } catch (e: Exception) {
-                _error.value = e.message
+                _error.value = "Error loading feed: ${e.message}"
                 _isLoading.value = false
             }
         }
@@ -121,27 +137,36 @@ class SocialViewModel @Inject constructor(
             try {
                 // Try to access Firebase Auth as a test
                 val currentUser = auth.currentUser
-                _error.value = null
 
                 try {
                     // Test Firestore with a simple operation
                     socialRepository.testFirestoreConnection()
+                    _firebaseAvailable.value = true
+                    _error.value = null
 
-                    loadFeed()
+                    if (currentUser != null) {
+                        loadFeed()
+                    } else {
+                        _error.value = "Please sign in to view the feed"
+                        _isLoading.value = false
+                    }
                 } catch (e: Exception) {
+                    _firebaseAvailable.value = false
                     _error.value = "Firestore unavailable: ${e.message}"
+                    _isLoading.value = false
                 }
             } catch (e: Exception) {
+                _firebaseAvailable.value = false
                 _error.value =
                     when {
                         e.message?.contains("Google Play Services", ignoreCase = true) == true -> {
                             "Google Play Services is required. Please run on a device with Google Play."
                         }
-
                         else -> {
                             "Firebase error: ${e.message}"
                         }
-                    }
+                }
+                _isLoading.value = false
             }
         }
     }

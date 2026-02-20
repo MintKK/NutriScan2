@@ -37,6 +37,7 @@ fun FeedScreen(
     val isLoading by viewModel.isLoading.collectAsState()
     val currentUser by viewModel.currentUser.collectAsState()
     val error by viewModel.error.collectAsState()
+    val firebaseAvailable by viewModel.firebaseAvailable.collectAsState()
 
     LaunchedEffect(Unit) {
         // Check if Firebase is available
@@ -46,16 +47,22 @@ fun FeedScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Food Forum") },
+                title = { Text("Food Feed") },
                 actions = {
                     IconButton(onClick = {
                         /* Open search */
                     }) {
                         Icon(Icons.Default.Search, contentDescription = "Search")
                     }
-                    IconButton(onClick = {
-                        onNavigateToProfile(currentUser?.uid ?: "")
-                    }) {
+                    IconButton(
+                        onClick = {
+                            if (currentUser != null) {
+                                onNavigateToProfile(currentUser!!.uid)
+                            }
+                        },
+
+                        enabled = currentUser != null
+                    ) {
                         Icon(Icons.Default.Person, contentDescription = "Profile")
                     }
                 }
@@ -79,17 +86,36 @@ fun FeedScreen(
                     onRetry = {
                         viewModel.clearError()
                         viewModel.checkFirebaseAvailability()
-                      },
+                    },
                     modifier = Modifier.padding(padding)
                 )
             }
 
+            // Will be loading
             isLoading && posts.isEmpty() -> {
                 Box(
                     modifier = Modifier.fillMaxSize().padding(padding),
                     contentAlignment = Alignment.Center
                 ) {
                     CircularProgressIndicator()
+                }
+            }
+
+            // Not loading
+            !isLoading && posts.isEmpty() -> {
+                Box(
+                    modifier = Modifier.fillMaxSize().padding(padding),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = if (currentUser == null) {
+                            "Please sign in to view the feed"
+                        } else {
+                            "No posts yet. Follow some users or create your first post!"
+                        },
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
 

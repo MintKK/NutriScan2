@@ -8,10 +8,12 @@ import com.google.firebase.firestore.toObjects
 import com.google.firebase.storage.FirebaseStorage
 import com.nutriscan.data.remote.models.*
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.TimeoutCancellationException
 
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withTimeout
 import java.util.*
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -186,22 +188,22 @@ class SocialRepository @Inject constructor(
     fun getFeedPosts(userId: String): Flow<List<Post>> = flow<List<Post>> {
         // Get following list
         val followsSnapshot = followsCollection
-            .whereEqualTo("followerId", userId)
+            .whereEqualTo("followerID", userId)
             .get()
             .await()
 
-        val followingIds = followsSnapshot.documents.mapNotNull { it.getString("followingId") }
-        val allUserIds = followingIds + userId
+        val followingIds = followsSnapshot.documents.mapNotNull { it.getString("followingID") }
+        val allUserIDs = followingIds + userId
 
-        if (allUserIds.isEmpty()) {
+        if (allUserIDs.isEmpty()) {
             emit(emptyList<Post>())
             return@flow
         }
 
         // Get posts
         val postsSnapshot = postsCollection
-            .whereIn("userId", allUserIds)
-            .orderBy("createdAt", Query.Direction.DESCENDING)
+            .whereIn("userID", allUserIDs)
+            .orderBy("created", Query.Direction.DESCENDING)
             .limit(50)
             .get()
             .await()
@@ -215,7 +217,7 @@ class SocialRepository @Inject constructor(
 
         // Listen to follows changes
         followingListener = followsCollection
-            .whereEqualTo("followerId", userId)
+            .whereEqualTo("followerID", userId)
             .addSnapshotListener { followsSnapshot, error ->
                 if (error != null) {
                     close(error)
@@ -223,10 +225,10 @@ class SocialRepository @Inject constructor(
                     return@addSnapshotListener
                 }
 
-                val followingIds = followsSnapshot?.documents?.mapNotNull { it.getString("followingId") } ?: emptyList()
-                val allUserIds = followingIds + userId
+                val followingIDs = followsSnapshot?.documents?.mapNotNull { it.getString("followingID") } ?: emptyList()
+                val allUserIDs = followingIDs + userId
 
-                if (allUserIds.isEmpty()) {
+                if (allUserIDs.isEmpty()) {
                     trySend(emptyList<Post>())
 
                     return@addSnapshotListener
@@ -237,8 +239,8 @@ class SocialRepository @Inject constructor(
 
                 // Create new posts listener with updated following list
                 postsListener = postsCollection
-                    .whereIn("userId", allUserIds)
-                    .orderBy("createdAt", Query.Direction.DESCENDING)
+                    .whereIn("userID", allUserIDs)
+                    .orderBy("created", Query.Direction.DESCENDING)
                     .limit(50)
                     .addSnapshotListener { postsSnapshot, postsError ->
                         if (postsError != null) {
@@ -456,9 +458,14 @@ class SocialRepository @Inject constructor(
         val lastVisible: QueryDocumentSnapshot?
     )
 
-    suspend fun testFirestoreConnection() {
-        try {
-            postsCollection.limit(1).get().await()
+    suspend fun testFirestoreConnection(): Boolean {
+        return try {
+            withTimeout(5000L) {
+                postsCollection.limit(1).get().await()
+                true
+            }
+        } catch (e: TimeoutCancellationException) {
+            throw Exception("Firestore connection timeout")
         } catch (e: Exception) {
             throw Exception("Firestore connection failed: ${e.message}")
         }
