@@ -8,6 +8,27 @@
         android:required="false" />
     <uses-permission android:name="android.permission.CAMERA" />
 
+    <!-- Step counter sensor (optional — app falls back to accelerometer) -->
+    <uses-feature
+        android:name="android.hardware.sensor.stepcounter"
+        android:required="false" />
+
+    <!-- Activity recognition (required on API 29+ for step counter access) -->
+    <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
+
+    <!-- Foreground service permissions -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_HEALTH" />
+
+    <!-- Notification permission (API 33+) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Wake lock for persistent background tracking -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <!-- Request battery optimization exemption -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
     <application
         android:name=".NutriScanApplication"
         android:allowBackup="true"
@@ -30,6 +51,17 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Step counter foreground service -->
+        <service
+            android:name=".sensor.StepCounterService"
+            android:exported="false"
+            android:foregroundServiceType="health" />
+
+        <!-- Activity recognition transition receiver -->
+        <receiver
+            android:name=".sensor.ActivityTransitionReceiver"
+            android:exported="false" />
     </application>
 
 </manifest>

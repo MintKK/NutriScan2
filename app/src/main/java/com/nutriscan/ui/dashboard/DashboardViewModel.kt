@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 import com.nutriscan.data.local.dao.MacroTotals
 import com.nutriscan.data.local.entity.MealLog
 import com.nutriscan.data.repository.MealRepository
+import com.nutriscan.data.repository.StepRepository
+import com.nutriscan.sensor.StepCounterService
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -16,7 +18,8 @@ import javax.inject.Inject
 
 @HiltViewModel
 class DashboardViewModel @Inject constructor(
-    private val mealRepository: MealRepository
+    private val mealRepository: MealRepository,
+    private val stepRepository: StepRepository
 ) : ViewModel() {
     
     // User's calorie goal (can be made configurable via DataStore)
@@ -35,6 +38,22 @@ class DashboardViewModel @Inject constructor(
     
     val weeklyAverage: StateFlow<Float> = mealRepository.getWeeklyAverageCalories()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0f)
+    
+    /**
+     * Today's step count — observed from the database via StepRepository.
+     * Person B can use this to compute calories burned.
+     */
+    val todaySteps: StateFlow<Int> = stepRepository.getTodaySteps()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+    
+    /**
+     * Live step count from the running foreground service.
+     * Updates more frequently than the database-backed todaySteps.
+     */
+    val liveSteps: StateFlow<Int> = StepCounterService.currentSteps
+    
+    /** Whether the step counter service is currently running. */
+    val isStepTrackingActive: StateFlow<Boolean> = StepCounterService.isServiceRunning
     
     fun setCalorieGoal(goal: Int) {
         _calorieGoal.value = goal

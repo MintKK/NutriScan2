@@ -2,7 +2,15 @@ package com.nutriscan.ui.addmeal
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.ImageDecoder
+import android.net.Uri
+import android.os.Build
+import android.provider.MediaStore
 import android.util.Log
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContract
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.Preview
@@ -112,17 +120,90 @@ fun AddMealScreen(
                         onCancel = { viewModel.resetState() }
                     )
                 }
-                else -> {
-                    // Unified capture: passes bitmap to ML, not hardcoded names
-                    UnifiedFoodCapture(
+                uiState.showCamera -> {
+                    CameraCapture(
                         isClassifying = uiState.isClassifying,
                         error = uiState.error,
                         onImageCaptured = { bitmap -> viewModel.classifyImage(bitmap) },
                         onManualSearch = { viewModel.showManualSearch() }
                     )
                 }
+                uiState.showGallery -> {
+                    GalleryPicker(
+                        onImagePicked = { bitmap -> viewModel.classifyImage(bitmap) },
+                        onDismiss = { viewModel.resetState() }
+                    )
+                }
+                else -> {
+                    // Landing screen: choose input method
+                    UnifiedFoodCapture(
+                        isClassifying = uiState.isClassifying,
+                        error = uiState.error,
+                        onImageCaptured = { bitmap -> viewModel.classifyImage(bitmap) },
+                        onManualSearch = { viewModel.showManualSearch() },
+                        onShowCamera = { viewModel.showCamera() },
+                        onShowGallery = { viewModel.showGallery() }
+                    )
+                }
             }
         }
+    }
+}
+
+@Composable
+fun GalleryPicker(
+    onImagePicked: (Bitmap) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val context = LocalContext.current
+
+    // launcher for photo picker
+    val launcher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            // convert URI to bitmap
+            val bitmap = try {
+                if (Build.VERSION.SDK_INT < 28) {
+                    @Suppress("DEPRECATION")
+                    MediaStore.Images.Media.getBitmap(context.contentResolver, uri)
+                } else {
+                    val source = ImageDecoder.createSource(context.contentResolver, uri)
+                    ImageDecoder.decodeBitmap(source) { decoder, _, _ ->
+                        // optional part: scale down if image is massive to prevent out-of-memory
+                        decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+                        decoder.isMutableRequired = true
+                    }
+                }
+            } catch (ex: Exception) {
+                ex.printStackTrace()
+                null
+            }
+
+            bitmap?.let { onImagePicked(it) }
+        } else {
+            // user cancelled
+            onDismiss()
+        }
+    }
+
+    // launch immediately when this composable enters composition
+    LaunchedEffect(Unit) {
+        launcher.launch(
+            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+        )
+    }
+
+    // show a placeholder or loading screen while the system picker is open
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        CircularProgressIndicator()
+        Text(
+            text = "Opening Gallery...",
+            modifier = Modifier.padding(top = 64.dp)
+        )
     }
 }
 
@@ -139,6 +220,29 @@ fun CameraCapture(
     var previewView by remember { mutableStateOf<PreviewView?>(null) }
     var imageCapture by remember { mutableStateOf<ImageCapture?>(null) }
     val executor = remember { Executors.newSingleThreadExecutor() }
+
+    // state to track if permission is granted to use the camera
+    var hasCameraPermission by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(
+                context,
+                android.Manifest.permission.CAMERA
+            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        )
+    }
+
+    // launcher to request permission
+    val launcher = rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.RequestPermission(),
+        onResult = { hasCameraPermission = it }
+    )
+
+    // launch permission request when this screen is shown
+    LaunchedEffect(Unit) {
+        if (!hasCameraPermission) {
+            launcher.launch(android.Manifest.permission.CAMERA)
+        }
+    }
     
     // Setup camera
     LaunchedEffect(previewView) {
@@ -570,17 +674,19 @@ fun UnifiedFoodCapture(
     isClassifying: Boolean,
     error: String?,
     onImageCaptured: (Bitmap) -> Unit,
-    onManualSearch: () -> Unit
+    onManualSearch: () -> Unit,
+    onShowCamera: () -> Unit,
+    onShowGallery: () -> Unit
 ) {
     val context = LocalContext.current
     
     // Sample images - labels are for display only, NOT for matching
     val sampleImages = remember {
         listOf(
-            SampleFoodImage("sample_images/banana.png", "Sample 1"),
+            SampleFoodImage("sample_images/Carbonara.png", "Sample 1"),
             SampleFoodImage("sample_images/fried_rice.png", "Sample 2"),
-            SampleFoodImage("sample_images/pizza.png", "Sample 3"),
-            SampleFoodImage("sample_images/hamburger.png", "Sample 4")
+            SampleFoodImage("sample_images/curry_chicken.png", "Sample 3"),
+            SampleFoodImage("sample_images/cheesecake.png", "Sample 4")
         )
     }
     
@@ -617,7 +723,7 @@ fun UnifiedFoodCapture(
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    "Tap an image to analyze with AI",
+                    "Choose how to add your meal",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
                 )
@@ -657,7 +763,118 @@ fun UnifiedFoodCapture(
             Spacer(modifier = Modifier.height(16.dp))
         }
         
-        // Sample images grid - tapping sends to ML, not direct lookup
+        // === INPUT METHOD OPTIONS ===
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            // Take Photo option
+            Card(
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable(enabled = !isClassifying) { onShowCamera() },
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer
+                )
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        Icons.Default.CameraAlt,
+                        contentDescription = "Take Photo",
+                        modifier = Modifier.size(32.dp),
+                        tint = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                    Text(
+                        "Take Photo",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Medium,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+            
+            // Upload from Gallery option
+            Card(
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable(enabled = !isClassifying) { onShowGallery() },
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer
+                )
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        Icons.Default.PhotoLibrary,
+                        contentDescription = "Upload from Gallery",
+                        modifier = Modifier.size(32.dp),
+                        tint = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                    Text(
+                        "Gallery",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Medium,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+            
+            // Search Manually option
+            Card(
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable(enabled = !isClassifying) { onManualSearch() },
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer
+                )
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Search,
+                        contentDescription = "Search Manually",
+                        modifier = Modifier.size(32.dp),
+                        tint = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                    Text(
+                        "Search",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Medium,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+        }
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        // === SAMPLE IMAGES SECTION ===
+        Text(
+            "Or try a sample image",
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        
+        Spacer(modifier = Modifier.height(8.dp))
+        
+        // Sample images grid - tapping sends to ML
         LazyVerticalGrid(
             columns = GridCells.Fixed(2),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -712,18 +929,6 @@ fun UnifiedFoodCapture(
                     }
                 }
             }
-        }
-        
-        Spacer(modifier = Modifier.height(16.dp))
-        
-        // Manual search button
-        OutlinedButton(
-            onClick = onManualSearch,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Icon(Icons.Default.Search, null)
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("Search Manually Instead")
         }
     }
 }

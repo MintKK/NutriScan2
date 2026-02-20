@@ -3,7 +3,9 @@ package com.nutriscan.ml
 import android.util.Log
 import com.nutriscan.data.local.entity.FoodItem
 import com.nutriscan.data.repository.FoodRepository
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -27,19 +29,34 @@ class FoodMatchingService @Inject constructor(
      * Always rebuilds to pick up any DB changes.
      */
     suspend fun initialize() {
-        val foods = foodRepository.getAllFoods().first()
+        val foods = withContext(Dispatchers.IO) {
+            foodRepository.getAllFoods().first()
+        }
+        
         Log.d(TAG, "Building index from ${foods.size} foods")
-        aliasIndex = FoodAliasIndex(foods)
+        
+        // Build the index on a background thread (heavy string normalization)
+        aliasIndex = withContext(Dispatchers.Default) {
+            FoodAliasIndex(foods)
+        }
+        
         Log.d(TAG, "Index built: ${aliasIndex!!.size()} names, aliases loaded")
         
-        // Debug: print all indexed aliases
-        foods.forEach { food ->
-            val aliases = food.aliases?.split(",")?.map { it.trim() }?.filter { it.isNotBlank() } ?: emptyList()
-            if (aliases.isNotEmpty()) {
-                Log.d(TAG, "  ${food.name} → aliases: $aliases")
+        // Debug: print all indexed aliases (also background)
+        withContext(Dispatchers.Default) {
+            foods.forEach { food ->
+                val aliases = food.aliases?.split(",")?.map { it.trim() }?.filter { it.isNotBlank() } ?: emptyList()
+                if (aliases.isNotEmpty()) {
+                    Log.d(TAG, "  ${food.name} → aliases: $aliases")
+                }
             }
         }
     }
+    
+    /**
+     * Whether the alias index has been built with at least one food item.
+     */
+    fun isReady(): Boolean = (aliasIndex?.size() ?: 0) > 0
     
     /**
      * Ensure index is ready, initializing if needed.
@@ -228,9 +245,4 @@ class FoodMatchingService @Inject constructor(
     fun getValidCandidates(results: List<FoodMatchResult>): List<FoodMatchResult> {
         return results.filter { it.isValidCandidate }
     }
-    
-    /**
-     * Check if index is initialized and ready.
-     */
-    fun isReady(): Boolean = aliasIndex != null && !aliasIndex!!.isEmpty()
 }

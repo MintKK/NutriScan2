@@ -211,6 +211,8 @@ class AddMealViewModel @Inject constructor(
                 showCandidateSelection = true,
                 showConfirmation = false,
                 showManualSearch = false,
+                showCamera = false,
+                showGallery = false,
                 error = null
             )
         }
@@ -339,6 +341,34 @@ class AddMealViewModel @Inject constructor(
         _uiState.update { it.copy(
             showManualSearch = true,
             showCandidateSelection = false,
+            showConfirmation = false,
+            showCamera = false,
+            showGallery = false
+        ) }
+    }
+    
+    /**
+     * Show camera capture screen.
+     */
+    fun showCamera() {
+        _uiState.update { it.copy(
+            showCamera = true,
+            showGallery = false,
+            showManualSearch = false,
+            showCandidateSelection = false,
+            showConfirmation = false
+        ) }
+    }
+    
+    /**
+     * Show gallery picker.
+     */
+    fun showGallery() {
+        _uiState.update { it.copy(
+            showGallery = true,
+            showCamera = false,
+            showManualSearch = false,
+            showCandidateSelection = false,
             showConfirmation = false
         ) }
     }
@@ -354,6 +384,8 @@ class AddMealViewModel @Inject constructor(
                 showCandidateSelection = true,
                 showConfirmation = false,
                 showManualSearch = false,
+                showCamera = false,
+                showGallery = false,
                 selectedFood = null
             ) }
         } else {
@@ -390,6 +422,8 @@ data class AddMealUiState(
     val showConfirmation: Boolean = false,
     val showCandidateSelection: Boolean = false,
     val showManualSearch: Boolean = false,
+    val showCamera: Boolean = false,
+    val showGallery: Boolean = false,
     
     // Other
     val searchHint: String = "",

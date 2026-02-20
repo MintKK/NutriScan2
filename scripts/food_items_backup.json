@@ -1,0 +1,306 @@
+[
+    {
+        "name": "banana",
+        "kcalPer100g": 89,
+        "proteinPer100g": 1.1,
+        "carbsPer100g": 22.8,
+        "fatPer100g": 0.3,
+        "aliases": "bananas,plantain,banana split,frozen banana,bananas foster,banana pudding"
+    },
+    {
+        "name": "orange",
+        "kcalPer100g": 47,
+        "proteinPer100g": 0.9,
+        "carbsPer100g": 11.8,
+        "fatPer100g": 0.1,
+        "aliases": "oranges,mandarin,orange chicken"
+    },
+    {
+        "name": "apple",
+        "kcalPer100g": 52,
+        "proteinPer100g": 0.3,
+        "carbsPer100g": 13.8,
+        "fatPer100g": 0.2,
+        "aliases": "apples,granny smith,red delicious,apple pie,apple cake,apple crisp,apple strudel,apple dumpling"
+    },
+    {
+        "name": "strawberry",
+        "kcalPer100g": 32,
+        "proteinPer100g": 0.7,
+        "carbsPer100g": 7.7,
+        "fatPer100g": 0.3,
+        "aliases": "strawberries,berries,strawberry delight"
+    },
+    {
+        "name": "pineapple",
+        "kcalPer100g": 50,
+        "proteinPer100g": 0.5,
+        "carbsPer100g": 13.1,
+        "fatPer100g": 0.1,
+        "aliases": "ananas"
+    },
+    {
+        "name": "lemon",
+        "kcalPer100g": 29,
+        "proteinPer100g": 1.1,
+        "carbsPer100g": 9.3,
+        "fatPer100g": 0.3,
+        "aliases": "lemons,lime,lemon ice box pie,shaker lemon pie"
+    },
+    {
+        "name": "pomegranate",
+        "kcalPer100g": 83,
+        "proteinPer100g": 1.7,
+        "carbsPer100g": 18.7,
+        "fatPer100g": 1.2,
+        "aliases": ""
+    },
+    {
+        "name": "fig",
+        "kcalPer100g": 74,
+        "proteinPer100g": 0.8,
+        "carbsPer100g": 19.2,
+        "fatPer100g": 0.3,
+        "aliases": "figs,figgy pudding"
+    },
+    {
+        "name": "granny smith",
+        "kcalPer100g": 52,
+        "proteinPer100g": 0.3,
+        "carbsPer100g": 13.6,
+        "fatPer100g": 0.2,
+        "aliases": "apple,green apple"
+    },
+    {
+        "name": "broccoli",
+        "kcalPer100g": 34,
+        "proteinPer100g": 2.8,
+        "carbsPer100g": 7.0,
+        "fatPer100g": 0.4,
+        "aliases": ""
+    },
+    {
+        "name": "cauliflower",
+        "kcalPer100g": 25,
+        "proteinPer100g": 1.9,
+        "carbsPer100g": 5.0,
+        "fatPer100g": 0.3,
+        "aliases": ""
+    },
+    {
+        "name": "bell pepper",
+        "kcalPer100g": 31,
+        "proteinPer100g": 1.0,
+        "carbsPer100g": 6.0,
+        "fatPer100g": 0.3,
+        "aliases": "capsicum,peppers,stuffed peppers,florina pepper"
+    },
+    {
+        "name": "mushroom",
+        "kcalPer100g": 22,
+        "proteinPer100g": 3.1,
+        "carbsPer100g": 3.3,
+        "fatPer100g": 0.3,
+        "aliases": "mushrooms,champignon"
+    },
+    {
+        "name": "artichoke",
+        "kcalPer100g": 47,
+        "proteinPer100g": 3.3,
+        "carbsPer100g": 10.5,
+        "fatPer100g": 0.2,
+        "aliases": ""
+    },
+    {
+        "name": "cardoon",
+        "kcalPer100g": 17,
+        "proteinPer100g": 0.7,
+        "carbsPer100g": 4.1,
+        "fatPer100g": 0.1,
+        "aliases": ""
+    },
+    {
+        "name": "spaghetti squash",
+        "kcalPer100g": 31,
+        "proteinPer100g": 0.6,
+        "carbsPer100g": 6.9,
+        "fatPer100g": 0.6,
+        "aliases": "squash,stuffed squash"
+    },
+    {
+        "name": "butternut squash",
+        "kcalPer100g": 45,
+        "proteinPer100g": 1.0,
+        "carbsPer100g": 11.7,
+        "fatPer100g": 0.1,
+        "aliases": "squash,pumpkin"
+    },
+    {
+        "name": "acorn squash",
+        "kcalPer100g": 40,
+        "proteinPer100g": 0.8,
+        "carbsPer100g": 10.4,
+        "fatPer100g": 0.1,
+        "aliases": "squash"
+    },
+    {
+        "name": "cucumber",
+        "kcalPer100g": 16,
+        "proteinPer100g": 0.7,
+        "carbsPer100g": 3.6,
+        "fatPer100g": 0.1,
+        "aliases": "cucumbers,cucumber soup,pickled cucumber,sea cucumber"
+    },
+    {
+        "name": "zucchini",
+        "kcalPer100g": 17,
+        "proteinPer100g": 1.2,
+        "carbsPer100g": 3.1,
+        "fatPer100g": 0.3,
+        "aliases": "courgette"
+    },
+    {
+        "name": "head cabbage",
+        "kcalPer100g": 25,
+        "proteinPer100g": 1.3,
+        "carbsPer100g": 5.8,
+        "fatPer100g": 0.1,
+        "aliases": "cabbage,cabbage roll,cabbage soup"
+    },
+    {
+        "name": "pizza",
+        "kcalPer100g": 266,
+        "proteinPer100g": 11.0,
+        "carbsPer100g": 33.0,
+        "fatPer100g": 10.0,
+        "aliases": "pizzas,slice,pepperoni,new york-style pizza,chicago-style pizza,st. louis-style pizza,neapolitan pizza,california-style pizza,new haven-style pizza,detroit-style pizza,quad city-style pizza,pizza bagel,pepperoni roll,carne pizzaiola"
+    },
+    {
+        "name": "hamburger",
+        "kcalPer100g": 295,
+        "proteinPer100g": 17.0,
+        "carbsPer100g": 24.0,
+        "fatPer100g": 14.0,
+        "aliases": "burger,cheeseburger,veggie burger,buffalo burger,luther burger,chili burger,afghani burger,patty"
+    },
+    {
+        "name": "hot dog",
+        "kcalPer100g": 247,
+        "proteinPer100g": 10.0,
+        "carbsPer100g": 18.0,
+        "fatPer100g": 15.0,
+        "aliases": "hotdog,frankfurter,sonoran hot dog,chicago-style hot dog,michigan hot dog,coney island hot dog,italian hot dog,seattle-style hot dog,bagel dog"
+    },
+    {
+        "name": "french loaf",
+        "kcalPer100g": 289,
+        "proteinPer100g": 9.4,
+        "carbsPer100g": 56.4,
+        "fatPer100g": 2.4,
+        "aliases": "baguette,bread,cornbread,anadama bread,cottage loaf,sandwich loaf,laverbread,rye bread,curry bread,veda bread,mealie bread,frybread,spoonbread,cockle bread"
+    },
+    {
+        "name": "bagel",
+        "kcalPer100g": 257,
+        "proteinPer100g": 10.0,
+        "carbsPer100g": 50.0,
+        "fatPer100g": 1.6,
+        "aliases": "bagels,bagel dog,pizza bagel"
+    },
+    {
+        "name": "pretzel",
+        "kcalPer100g": 380,
+        "proteinPer100g": 9.0,
+        "carbsPer100g": 79.0,
+        "fatPer100g": 3.0,
+        "aliases": "pretzels"
+    },
+    {
+        "name": "cheeseburger",
+        "kcalPer100g": 303,
+        "proteinPer100g": 15.0,
+        "carbsPer100g": 25.0,
+        "fatPer100g": 15.0,
+        "aliases": "burger,hamburger,ciabatta bacon cheeseburger,cheesesteak"
+    },
+    {
+        "name": "meat loaf",
+        "kcalPer100g": 149,
+        "proteinPer100g": 14.0,
+        "carbsPer100g": 6.0,
+        "fatPer100g": 8.0,
+        "aliases": "meatloaf,meatball,steamed meatball,smyrna meatballs"
+    },
+    {
+        "name": "carbonara",
+        "kcalPer100g": 158,
+        "proteinPer100g": 7.0,
+        "carbsPer100g": 18.0,
+        "fatPer100g": 6.5,
+        "aliases": "pasta,spaghetti carbonara,spaghetti,spaghetti aglio e olio,spaghetti alle vongole"
+    },
+    {
+        "name": "doughnut",
+        "kcalPer100g": 452,
+        "proteinPer100g": 4.9,
+        "carbsPer100g": 51.0,
+        "fatPer100g": 25.0,
+        "aliases": "donut,doughnuts,donuts,maple bacon donut,boston cream doughnut"
+    },
+    {
+        "name": "fried rice",
+        "kcalPer100g": 163,
+        "proteinPer100g": 4.2,
+        "carbsPer100g": 25.0,
+        "fatPer100g": 5.2,
+        "aliases": "rice,white rice,american fried rice,kimchi fried rice,thai fried rice,yangzhou fried rice,hokkien fried rice,dirty rice,coconut rice,hainanese chicken rice"
+    },
+    {
+        "name": "steak",
+        "kcalPer100g": 271,
+        "proteinPer100g": 26.0,
+        "carbsPer100g": 0.0,
+        "fatPer100g": 18.0,
+        "aliases": "beef,beef steak,chicken fried steak,finger steaks,salisbury steak,steak tartare,steak sandwich,steak de burgo,swiss steak,delmonico steak,steak diane"
+    },
+    {
+        "name": "egg",
+        "kcalPer100g": 155,
+        "proteinPer100g": 13.0,
+        "carbsPer100g": 1.1,
+        "fatPer100g": 11.0,
+        "aliases": "eggs,eggs benedict,deviled egg,century egg,eggs sardou,eggs neptune,tea egg,soy egg,chinese steamed eggs,creamed eggs on toast,stir-fried tomato and scrambled eggs"
+    },
+    {
+        "name": "sausage",
+        "kcalPer100g": 301,
+        "proteinPer100g": 12.0,
+        "carbsPer100g": 2.0,
+        "fatPer100g": 27.0,
+        "aliases": "sausages,breakfast sausage,bologna sausage,chinese sausage,glamorgan sausage,sausage gravy,sausage sandwich,sausage stroganoff,bratwurst,botifarra"
+    },
+    {
+        "name": "salad",
+        "kcalPer100g": 20,
+        "proteinPer100g": 1.5,
+        "carbsPer100g": 3.5,
+        "fatPer100g": 0.2,
+        "aliases": "garden salad,greek salad,waldorf salad,potato salad,caprese salad,cobb salad,caesar salad,michigan salad,pasta salad,macaroni salad,eggplant salad"
+    },
+    {
+        "name": "soup",
+        "kcalPer100g": 36,
+        "proteinPer100g": 2.0,
+        "carbsPer100g": 5.0,
+        "fatPer100g": 1.0,
+        "aliases": "miso soup,french onion soup,pea soup,cucumber soup,lettuce soup,oxtail soup,beef noodle soup,egg drop soup,tomato and egg soup,corn crab soup,sweet potato soup,she-crab soup,turtle soup"
+    },
+    {
+        "name": "pork",
+        "kcalPer100g": 242,
+        "proteinPer100g": 27.0,
+        "carbsPer100g": 0.0,
+        "fatPer100g": 14.0,
+        "aliases": "pork tenderloin sandwich,sweet and sour pork,twice-cooked pork,moo shu pork,red braised pork belly,pork roll,pork and beans,pork bones"
+    }
+]

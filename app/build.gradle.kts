@@ -4,6 +4,7 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.hilt)
     alias(libs.plugins.ksp)
+    id("com.google.gms.google-services")
 }
 
 android {
@@ -87,6 +88,12 @@ dependencies {
     // Data
     implementation(libs.gson)
     implementation(libs.datastore.preferences)
+    
+    // Lifecycle service (for StepCounterService)
+    implementation("androidx.lifecycle:lifecycle-service:2.6.2")
+    
+    // Google Play Services — Activity Recognition API
+    implementation("com.google.android.gms:play-services-location:21.0.1")
 
     // Testing
     testImplementation(libs.junit)
@@ -96,4 +103,19 @@ dependencies {
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
+
+
+    // Firebase
+    implementation(platform("com.google.firebase:firebase-bom:34.9.0"))
+    implementation("com.google.firebase:firebase-analytics")
+    implementation("com.google.firebase:firebase-auth")
+    implementation("com.google.firebase:firebase-firestore")
+    implementation("com.google.firebase:firebase-storage")
+    implementation("com.google.firebase:firebase-messaging")
+
+    // Pagination
+    implementation("androidx.paging:paging-compose:3.2.1")
+
+    // Image loading
+    implementation("io.coil-kt:coil-compose:2.5.0")
 }

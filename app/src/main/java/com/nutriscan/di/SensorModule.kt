@@ -1,0 +1,24 @@
+package com.nutriscan.di
+
+import android.content.Context
+import android.hardware.SensorManager
+import dagger.Module
+import dagger.Provides
+import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
+import dagger.hilt.components.SingletonComponent
+import javax.inject.Singleton
+
+/**
+ * Hilt module providing sensor-related dependencies.
+ */
+@Module
+@InstallIn(SingletonComponent::class)
+object SensorModule {
+
+    @Provides
+    @Singleton
+    fun provideSensorManager(@ApplicationContext context: Context): SensorManager {
+        return context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
+    }
+}

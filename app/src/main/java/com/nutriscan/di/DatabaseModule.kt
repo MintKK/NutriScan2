@@ -7,15 +7,23 @@ import com.google.gson.reflect.TypeToken
 import com.nutriscan.data.local.AppDatabase
 import com.nutriscan.data.local.dao.FoodItemDao
 import com.nutriscan.data.local.dao.MealLogDao
+import com.nutriscan.data.local.dao.StepLogDao
+import com.nutriscan.data.local.dao.ActivityLogDao
 import com.nutriscan.data.local.entity.FoodItem
 import androidx.room.Room
+import androidx.room.RoomDatabase
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
-import kotlinx.coroutines.runBlocking
+import androidx.sqlite.db.SupportSQLiteDatabase
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import java.io.InputStreamReader
+import javax.inject.Provider
 import javax.inject.Singleton
 
 @Module
@@ -26,38 +34,42 @@ object DatabaseModule {
     
     @Provides
     @Singleton
-    fun provideDatabase(@ApplicationContext context: Context): AppDatabase {
-        val db = Room.databaseBuilder(
+    fun provideDatabase(
+        @ApplicationContext context: Context,
+        foodItemDaoProvider: Provider<FoodItemDao> // Use provider to avoid circular dependency
+    ): AppDatabase {
+        return Room.databaseBuilder(
             context.applicationContext,
             AppDatabase::class.java,
             "nutriscan_database"
         )
+            .addCallback(object : RoomDatabase.Callback() {
+                override fun onCreate(db: SupportSQLiteDatabase) {
+                    super.onCreate(db)
+                    // Seed database on creation
+                    val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+                    scope.launch {
+                        seedDatabase(context, foodItemDaoProvider.get())
+                    }
+                }
+            })
             .fallbackToDestructiveMigration()
             .build()
-        
-        // Seed database if empty (runs after build, so instance is available)
-        runBlocking {
-            val dao = db.foodItemDao()
-            val existingCount = dao.getCount()
-            Log.d(TAG, "DB food count: $existingCount")
-            
-            if (existingCount == 0) {
-                Log.d(TAG, "Seeding food database from JSON...")
-                try {
-                    val inputStream = context.assets.open("food_items.json")
-                    val reader = InputStreamReader(inputStream)
-                    val type = object : TypeToken<List<FoodItem>>() {}.type
-                    val foods: List<FoodItem> = Gson().fromJson(reader, type)
-                    dao.insertAll(foods)
-                    reader.close()
-                    Log.d(TAG, "Seeded ${foods.size} food items")
-                } catch (e: Exception) {
-                    Log.e(TAG, "Failed to seed database", e)
-                }
-            }
+    }
+
+    private suspend fun seedDatabase(context: Context, dao: FoodItemDao) {
+        Log.d(TAG, "Seeding food database from JSON...")
+        try {
+            val inputStream = context.assets.open("food_items.json")
+            val reader = InputStreamReader(inputStream)
+            val type = object : TypeToken<List<FoodItem>>() {}.type
+            val foods: List<FoodItem> = Gson().fromJson(reader, type)
+            dao.insertAll(foods)
+            reader.close()
+            Log.d(TAG, "Seeded ${foods.size} food items")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to seed database", e)
         }
-        
-        return db
     }
     
     @Provides
@@ -68,5 +80,15 @@ object DatabaseModule {
     @Provides
     fun provideMealLogDao(database: AppDatabase): MealLogDao {
         return database.mealLogDao()
+    }
+    
+    @Provides
+    fun provideStepLogDao(database: AppDatabase): StepLogDao {
+        return database.stepLogDao()
+    }
+    
+    @Provides
+    fun provideActivityLogDao(database: AppDatabase): ActivityLogDao {
+        return database.activityLogDao()
     }
 }
