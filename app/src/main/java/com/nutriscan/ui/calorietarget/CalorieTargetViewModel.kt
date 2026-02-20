@@ -26,4 +26,44 @@ class CalorieTargetViewModel @Inject constructor(
             mealRepository.saveTargetCalories(targetCalories)
         }
     }
+
+    //------------------ GENDER(is female)
+    val getIsFemale = mealRepository.getIsFemale()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000),false)
+
+    fun setIsFemale(value: Boolean) {
+        viewModelScope.launch {
+            mealRepository.saveIsFemale(value)
+        }
+    }
+
+    //------------------ WEIGHT
+    val getWeight = mealRepository.getWeight()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000),50)
+
+    fun setWeight(value: Int) {
+        viewModelScope.launch {
+            mealRepository.saveWeight(value)
+        }
+    }
+
+    //------------------ HEIGHT
+    val getHeight = mealRepository.getHeight()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000),160)
+
+    fun setHeight(value: Int) {
+        viewModelScope.launch {
+            mealRepository.saveHeight(value)
+        }
+    }
+
+    //------------------ AGE
+    val getAge = mealRepository.getAge()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000),21)
+
+    fun setAge(value: Int) {
+        viewModelScope.launch {
+            mealRepository.saveAge(value)
+        }
+    }
 }

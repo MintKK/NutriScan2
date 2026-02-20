@@ -45,7 +45,10 @@ fun AnalyticsScreen(
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack, "Back")
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer
+                )
             )
         }
     ) { padding ->
@@ -58,79 +61,69 @@ fun AnalyticsScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             // Weekly Summary Card
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer
-                )
-            ) {
+            Box() {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(vertical = 10.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
 
-                Column() {
-
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(20.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column {
-                            Text(
-                                "Weekly Goal",
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                            Text(
-                                "${targetCalories.toInt()} kcal/day",
-                                style = MaterialTheme.typography.headlineMedium,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                        Button(
-                            onClick = onCalorieTargetClick
+                    Card() {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(20.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("Edit Goal")
+                            Column {
+                                Text(
+                                    "Weekly Goal",
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                                Text(
+                                    "${targetCalories.toInt()} kcal/day",
+                                    style = MaterialTheme.typography.headlineMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            Button(
+                                onClick = onCalorieTargetClick
+                            ) {
+                                Text("Edit Goal")
+                            }
                         }
-//                        Icon(
-//                            Icons.Default.AddLocation,
-//                            contentDescription = null,
-//                            modifier = Modifier.size(48.dp),
-//                            tint = MaterialTheme.colorScheme.onPrimaryContainer
-//                        )
                     }
 
-                    HorizontalDivider(
-                        thickness = 2.dp,
-                        color = MaterialTheme.colorScheme.outline
-                    )
-
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(20.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column {
-                            Text(
-                                "Weekly Average",
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                            Text(
-                                "${weeklyAverage.toInt()} kcal/day",
-                                style = MaterialTheme.typography.headlineMedium,
-                                fontWeight = FontWeight.Bold
+                    Card() {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(20.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text(
+                                    "Weekly Average",
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                                Text(
+                                    "${weeklyAverage.toInt()} kcal/day",
+                                    style = MaterialTheme.typography.headlineMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            Icon(
+                                Icons.Default.TrendingUp,
+                                contentDescription = null,
+                                modifier = Modifier.size(48.dp),
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer
                             )
                         }
-                        Icon(
-                            Icons.Default.TrendingUp,
-                            contentDescription = null,
-                            modifier = Modifier.size(48.dp),
-                            tint = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
                     }
                 }
-
-
             }
             
             // Trend Chart
