@@ -665,10 +665,10 @@ fun UnifiedFoodCapture(
     // Sample images - labels are for display only, NOT for matching
     val sampleImages = remember {
         listOf(
-            SampleFoodImage("sample_images/banana.png", "Sample 1"),
+            SampleFoodImage("sample_images/Carbonara.png", "Sample 1"),
             SampleFoodImage("sample_images/fried_rice.png", "Sample 2"),
-            SampleFoodImage("sample_images/pizza.png", "Sample 3"),
-            SampleFoodImage("sample_images/hamburger.png", "Sample 4")
+            SampleFoodImage("sample_images/curry_chicken.png", "Sample 3"),
+            SampleFoodImage("sample_images/cheesecake.png", "Sample 4")
         )
     }
     
