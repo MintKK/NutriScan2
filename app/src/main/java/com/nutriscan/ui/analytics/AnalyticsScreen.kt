@@ -215,28 +215,26 @@ fun CalorieTrendChart(
                 val maxValue = maxOf(maxDataValue, targetCalorie.toFloat()).coerceAtLeast(1f)
                 val width = size.width
                 val height = size.height
-                val barWidth = width / (data.size * 2)
+                val spacing = width / data.size
+                val barWidth = spacing * 0.6f
 
                 
                 // Draw bars
                 data.forEachIndexed { index, daily ->
                     val barHeight = (daily.totalKcal / maxValue) * height * 0.8f
-                    val x = index * (width / data.size) + barWidth / 2
+                    val centerX = index * spacing + spacing / 2f
+                    val x = centerX - barWidth / 2f
+//                    val x = index * (width / data.size) + barWidth / 2
                     val y = height - barHeight
 
-                    if (daily.totalKcal < targetCalorie) {
-                        drawRect(
-                            color = Color(0xFF80C583),
-                            topLeft = Offset(x, y),
-                            size = Size(barWidth, barHeight)
-                        )
-                    } else {
-                        drawRect(
-                            color = Color(0xFFB87777),
-                            topLeft = Offset(x, y),
-                            size = Size(barWidth, barHeight)
-                        )
-                    }
+                    drawRect(
+                        color = if (daily.totalKcal < targetCalorie)
+                            Color(0xFF80C583)
+                        else
+                            Color(0xFFB87777),
+                        topLeft = Offset(x, y),
+                        size = Size(barWidth, barHeight)
+                    )
 
                     // Draw text below bar
                     val dateLayoutResult = textMeasurer.measure(
@@ -282,13 +280,14 @@ fun CalorieTrendChart(
                 if (data.size > 1) {
                     val path = Path()
                     data.forEachIndexed { index, daily ->
-                        val x = index * (width / (data.size - 1))
+                        val centerX = index * spacing + spacing / 2f
+//                        val x = index * (width / (data.size - 1))
                         val y = height - (daily.totalKcal / maxValue) * height * 0.8f
                         
                         if (index == 0) {
-                            path.moveTo(x, y)
+                            path.moveTo(centerX, y)
                         } else {
-                            path.lineTo(x, y)
+                            path.lineTo(centerX, y)
                         }
                     }
                     

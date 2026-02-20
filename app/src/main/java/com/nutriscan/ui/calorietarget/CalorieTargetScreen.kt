@@ -237,7 +237,7 @@ fun CalorieTargetScreen(
             }
 
             Text(
-                "Calorie Target",
+                "Calorie Target Recommendation",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )
@@ -249,7 +249,7 @@ fun CalorieTargetScreen(
                     customCaloriesString = input.filter { it.isDigit() }
                     targetSaved = false
                 },
-                label = { Text("Custom (calories)") },
+                label = { Text("Custom (kcal)") },
                 keyboardOptions = KeyboardOptions(
                     keyboardType = KeyboardType.Number,
                     imeAction = ImeAction.Done
@@ -258,7 +258,8 @@ fun CalorieTargetScreen(
             )
 
             Row(
-                horizontalArrangement = Arrangement.SpaceAround,
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Button(
@@ -273,6 +274,7 @@ fun CalorieTargetScreen(
                     Text("Confirm Target")
                 }
 
+                Spacer(modifier = Modifier.width(12.dp))
 
                 if (targetSaved) {
                     Text(
