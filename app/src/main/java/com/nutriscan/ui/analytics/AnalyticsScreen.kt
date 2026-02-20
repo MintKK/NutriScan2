@@ -19,7 +19,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.nutriscan.data.local.dao.DailyCalories
@@ -201,6 +203,9 @@ fun CalorieTrendChart(
                 Text("No data")
             }
         } else {
+            val textMeasurer = rememberTextMeasurer()
+            val graphTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+
             Canvas(
                 modifier = Modifier
                     .fillMaxSize()
@@ -211,6 +216,7 @@ fun CalorieTrendChart(
                 val width = size.width
                 val height = size.height
                 val barWidth = width / (data.size * 2)
+
                 
                 // Draw bars
                 data.forEachIndexed { index, daily ->
@@ -231,6 +237,41 @@ fun CalorieTrendChart(
                             size = Size(barWidth, barHeight)
                         )
                     }
+
+                    // Draw text below bar
+                    val dateLayoutResult = textMeasurer.measure(
+                        text = daily.day.takeLast(5), // e.g. "02-02"
+                    )
+
+                    // date
+                    drawText(
+                        dateLayoutResult,
+                        topLeft = Offset(
+                            x + (barWidth - dateLayoutResult.size.width) / 2f,
+                            size.height + 4f // small spacing below bar
+                        ),
+                        color = graphTextColor
+                    )
+                    val deviationPercent = ((daily.totalKcal - targetCalorie).toFloat() / targetCalorie) * 100f
+                    val formattedDeviation =
+                        if (deviationPercent <= -100f) {
+                            ""   // hide -100%
+                        } else {
+                            String.format("%+.0f%%", deviationPercent)
+                        }
+
+                    val deviationLayoutResult = textMeasurer.measure(
+                        text = formattedDeviation
+                    )
+
+                    // deviation
+                    drawText(
+                        deviationLayoutResult,
+                        topLeft = Offset(
+                            x + (barWidth - deviationLayoutResult.size.width) / 2f, // center text
+                            y - deviationLayoutResult.size.height - 8f // move above bar with spacing
+                        )
+                    )
 
                 }
                 
