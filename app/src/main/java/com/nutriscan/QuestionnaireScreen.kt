@@ -72,7 +72,11 @@ fun QuestionnaireScreen(
             1 -> OptionStep(
                 title = "What is your gender?",
                 options = listOf("Male", "Female"),
-                selected = viewModel.selectedGender?.name,
+                selected = when (viewModel.selectedGender) {
+                    Gender.MALE -> "Male"
+                    Gender.FEMALE -> "Female"
+                    null -> null
+                },
                 onSelect = {
                     viewModel.selectedGender = if (it == "Male") Gender.MALE else Gender.FEMALE
                 }
@@ -85,7 +89,13 @@ fun QuestionnaireScreen(
                     "Moderately Active (3-5 days/week)",
                     "Very Active (6-7 days/week)"
                 ),
-                selected = viewModel.selectedActivityLevel?.name,
+                selected = when (viewModel.selectedActivityLevel) {
+                    ActivityLevel.SEDENTARY -> "Sedentary (little or no exercise)"
+                    ActivityLevel.LIGHTLY_ACTIVE -> "Lightly Active (1-3 days/week)"
+                    ActivityLevel.MODERATELY_ACTIVE -> "Moderately Active (3-5 days/week)"
+                    ActivityLevel.VERY_ACTIVE -> "Very Active (6-7 days/week)"
+                    null -> null
+                },
                 onSelect = {
                     viewModel.selectedActivityLevel = when (it) {
                         "Sedentary (little or no exercise)"  -> ActivityLevel.SEDENTARY
@@ -153,13 +163,13 @@ private fun OptionStep(
             modifier = Modifier
                 .fillMaxWidth()
                 .selectable(
-                    selected = selected != null && option.startsWith(selected.replace("_", " "), ignoreCase = true),
+                    selected = option == selected,
                     onClick = { onSelect(option) }
                 )
                 .padding(vertical = 4.dp)
         ) {
             RadioButton(
-                selected = selected != null && option.startsWith(selected.replace("_", " "), ignoreCase = true),
+                selected = option == selected,
                 onClick = { onSelect(option) }
             )
             Text(text = option, modifier = Modifier.padding(start = 8.dp))
