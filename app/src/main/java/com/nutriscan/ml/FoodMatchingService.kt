@@ -54,6 +54,11 @@ class FoodMatchingService @Inject constructor(
     }
     
     /**
+     * Whether the alias index has been built with at least one food item.
+     */
+    fun isReady(): Boolean = (aliasIndex?.size() ?: 0) > 0
+    
+    /**
      * Ensure index is ready, initializing if needed.
      */
     private suspend fun ensureIndexReady(): FoodAliasIndex {
@@ -240,9 +245,4 @@ class FoodMatchingService @Inject constructor(
     fun getValidCandidates(results: List<FoodMatchResult>): List<FoodMatchResult> {
         return results.filter { it.isValidCandidate }
     }
-    
-    /**
-     * Check if index is initialized and ready.
-     */
-    fun isReady(): Boolean = aliasIndex != null && !aliasIndex!!.isEmpty()
 }
