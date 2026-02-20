@@ -30,6 +30,7 @@ class MainActivity : ComponentActivity() {
                     val navController = rememberNavController()
                     NutriScanNavHost(
                         navController = navController,
+                        prefs = prefs,
                         questionnaireDone = questionnaireDone
                     )
                 }

@@ -1,9 +1,13 @@
 package com.nutriscan.ui.navigation
 
+import android.content.SharedPreferences
 import androidx.compose.runtime.Composable
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import com.nutriscan.NutritionTargets
+import com.nutriscan.NutritionTargetsPrefs
+import com.nutriscan.QuestionnaireResultsScreen
 import com.nutriscan.QuestionnaireScreen
 import com.nutriscan.WelcomeScreen
 import com.nutriscan.ui.activity.ActivityTrackerScreen
@@ -25,6 +29,7 @@ import com.nutriscan.ui.social.CreatePostScreen
 sealed class Screen(val route: String) {
     object Welcome : Screen("welcome")
     object Questionnaire : Screen("questionnaire")
+    object QuestionnaireResults : Screen("questionnaire_results")
 
     object Dashboard : Screen("dashboard")
     object AddMeal : Screen("add_meal")
@@ -52,6 +57,7 @@ sealed class Screen(val route: String) {
 @Composable
 fun NutriScanNavHost(
     navController: NavHostController,
+    prefs: SharedPreferences,
     questionnaireDone: Boolean = false
 ) {
     NavHost(
@@ -76,8 +82,23 @@ fun NutriScanNavHost(
         composable(Screen.Questionnaire.route) {
             QuestionnaireScreen(
                 onFinished = { targets ->
-                    navController.navigate(Screen.Dashboard.route) {
+                    // save targets to SharedPreferences
+                    NutritionTargetsPrefs.save(prefs, targets)
+
+                    navController.navigate(Screen.QuestionnaireResults.route) {
                         popUpTo(Screen.Questionnaire.route) { inclusive = true }
+                    }
+                }
+            )
+        }
+
+        composable(Screen.QuestionnaireResults.route) {
+            val targets = NutritionTargetsPrefs.load(prefs) ?: NutritionTargets(0, 0, 0, 0)
+            QuestionnaireResultsScreen(
+                targets = targets,
+                onContinue = {
+                    navController.navigate(Screen.Dashboard.route) {
+                        popUpTo(Screen.QuestionnaireResults.route) { inclusive = true }
                     }
                 }
             )
