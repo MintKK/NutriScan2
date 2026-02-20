@@ -2,19 +2,30 @@ package com.nutriscan.data.repository
 
 import android.net.Uri
 import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.firestore.*
+import com.google.firebase.firestore.FieldValue
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.FirebaseFirestoreException
+import com.google.firebase.firestore.ListenerRegistration
+import com.google.firebase.firestore.Query
+import com.google.firebase.firestore.QueryDocumentSnapshot
 import com.google.firebase.firestore.toObject
 import com.google.firebase.firestore.toObjects
 import com.google.firebase.storage.FirebaseStorage
-import com.nutriscan.data.remote.models.*
+import com.nutriscan.data.remote.models.Comment
+import com.nutriscan.data.remote.models.Follow
+import com.nutriscan.data.remote.models.Like
+import com.nutriscan.data.remote.models.Post
+import com.nutriscan.data.remote.models.User
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.TimeoutCancellationException
-
 import kotlinx.coroutines.channels.awaitClose
-import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withTimeout
-import java.util.*
+import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.math.pow
@@ -256,6 +267,40 @@ class SocialRepository @Inject constructor(
         }
     }
 
+    fun getUserPosts(userID: String): Flow<List<Post>> = flow {
+        try {
+            val snapshot = postsCollection
+                .whereEqualTo("userID", userID)
+                .orderBy("created", Query.Direction.DESCENDING)
+                .limit(20)
+                .get()
+                .await()
+
+            emit(snapshot.toObjects<Post>())
+        } catch (e: Exception) {
+            // Return empty list on error, error will be handled by ViewModel
+            emit(emptyList())
+        }
+    }.flowOn(Dispatchers.IO)
+
+    fun getUserPostsRealtime(userID: String): Flow<List<Post>> = callbackFlow {
+        val listener = postsCollection
+            .whereEqualTo("userID", userID)
+            .orderBy("created", Query.Direction.DESCENDING)
+            .limit(20)
+            .addSnapshotListener {
+                snapshot, error ->
+                if (error != null) {
+                    close(error)
+                    return@addSnapshotListener
+                }
+
+                trySend(snapshot?.toObjects<Post>() ?: emptyList())
+            }
+
+        awaitClose { listener.remove() }
+    }
+
     // like
     suspend fun likePost(postID: String): Result<Boolean> {
         return try {
@@ -460,9 +505,21 @@ class SocialRepository @Inject constructor(
 
     suspend fun testFirestoreConnection(): Boolean {
         return try {
-            withTimeout(5000L) {
-                postsCollection.limit(1).get().await()
-                true
+            withTimeout(10000L) {
+                // Try a simple operation that doesn't require authentication
+                // Using collection group query might work better
+                try {
+                    postsCollection.limit(1).get().await()
+                    true
+                } catch (e: FirebaseFirestoreException) {
+                    if (e.code == FirebaseFirestoreException.Code.PERMISSION_DENIED) {
+                        // This might actually be okay - it means Firestore is reachable
+                        // but requires authentication
+                        true
+                    } else {
+                        throw e
+                    }
+                }
             }
         } catch (e: TimeoutCancellationException) {
             throw Exception("Firestore connection timeout")

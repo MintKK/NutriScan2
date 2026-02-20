@@ -7,10 +7,13 @@ import androidx.navigation.compose.composable
 import com.nutriscan.ui.activity.ActivityTrackerScreen
 import com.nutriscan.ui.addmeal.AddMealScreen
 import com.nutriscan.ui.analytics.AnalyticsScreen
-import com.nutriscan.ui.calorietarget.CalorieTargetScreen
+import com.nutriscan.ui.auth.SignInScreen
+import com.nutriscan.ui.auth.SignUpScreen
 import com.nutriscan.ui.caloriesburned.CaloriesBurnedScreen
+import com.nutriscan.ui.calorietarget.CalorieTargetScreen
 import com.nutriscan.ui.dashboard.DashboardScreen
 import com.nutriscan.ui.social.FeedScreen
+import com.nutriscan.ui.social.UserProfileScreen
 
 /**
  * Navigation routes for the app.
@@ -32,6 +35,10 @@ sealed class Screen(val route: String) {
     object UserProfile : Screen("user_profile/{userID}") {
         fun passUserID(userID: String): String = "user_profile/$userID"
     }
+
+    // Auth
+    object SignIn : Screen("sign_in")
+    object SignUp : Screen("sign_up")
 }
 
 @Composable
@@ -86,8 +93,60 @@ fun NutriScanNavHost(
 
         composable(Screen.Feed.route) {
             FeedScreen(
-                onNavigateToProfile = {  },
+                onNavigateToProfile = {
+                    userID ->
+                    navController.navigate(Screen.UserProfile.passUserID(userID))
+                },
                 onNavigateToCreatePost = {  },
+                onNavigateToSignIn = {
+                    navController.navigate(Screen.SignIn.route)
+                },
+                onSignOut = {
+                    navController.popBackStack(Screen.Dashboard.route, false)
+                },
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Screen.UserProfile.route) { backStackEntry ->
+            val userID = backStackEntry.arguments?.getString("userID") ?: ""
+            UserProfileScreen(
+                userID = userID,
+                onBack = { navController.popBackStack() },
+                onNavigateToFeed = { navController.popBackStack(Screen.Feed.route, false) },
+                onSignOut = { navController.popBackStack(Screen.Feed.route, false) }
+            )
+        }
+
+        composable(Screen.SignIn.route) {
+            SignInScreen(
+                onSignInSuccess = {
+                    navController.popBackStack()
+                    navController.navigate(Screen.Feed.route) {
+                        popUpTo(Screen.Feed.route) {
+                            inclusive = true
+                        }
+                    }
+                },
+                onNavigateToSignUp = { navController.navigate(Screen.SignUp.route) },
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Screen.SignUp.route) {
+            SignUpScreen(
+                onSignUpSuccess = {
+                    navController.popBackStack()
+                    navController.navigate(Screen.Feed.route) {
+                        popUpTo(Screen.Feed.route) {
+                            inclusive = true
+                        }
+                    }
+                },
+                onNavigateToSignIn = {
+                    navController.popBackStack()
+                    navController.navigate(Screen.SignIn.route)
+                },
                 onBack = { navController.popBackStack() }
             )
         }
