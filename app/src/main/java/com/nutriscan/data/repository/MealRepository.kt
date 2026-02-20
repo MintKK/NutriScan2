@@ -4,6 +4,7 @@ import android.os.Build
 import androidx.annotation.RequiresApi
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import com.nutriscan.data.local.dao.DailyCalories
@@ -17,6 +18,7 @@ import java.util.Calendar
 import javax.inject.Inject
 import javax.inject.Singleton
 import androidx.datastore.preferences.core.emptyPreferences
+import androidx.datastore.preferences.core.floatPreferencesKey
 import kotlinx.coroutines.flow.catch
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -91,6 +93,11 @@ class MealRepository @Inject constructor(
 
     private object Keys {
         val TARGET_CALORIES = intPreferencesKey("target_calories")
+
+        val USER_IS_FEMALE = booleanPreferencesKey("user_isFemale")
+        val USER_WEIGHT = intPreferencesKey("user_weight")
+        val USER_HEIGHT = intPreferencesKey("user_height")
+        val USER_AGE = intPreferencesKey("user_age")
     }
 
     fun getTargetCalories(): Flow<Int> {
@@ -100,11 +107,63 @@ class MealRepository @Inject constructor(
                 prefs[Keys.TARGET_CALORIES] ?: 0
             }
     }
-
-
     suspend fun saveTargetCalories(targetCal: Int) {
         dataStore.edit { prefs ->
             prefs[Keys.TARGET_CALORIES] = targetCal
+        }
+    }
+
+    //------------------ GENDER
+    fun getIsFemale(): Flow<Boolean> {
+        return dataStore.data
+            .catch { emit(emptyPreferences()) }
+            .map { prefs ->
+                prefs[Keys.USER_IS_FEMALE] ?: false
+            }
+    }
+    suspend fun saveIsFemale(value: Boolean) {
+        dataStore.edit { prefs ->
+            prefs[Keys.USER_IS_FEMALE] = value
+        }
+    }
+
+    //------------------ WEIGHT
+    fun getWeight(): Flow<Int> {
+        return dataStore.data
+            .catch { emit(emptyPreferences()) }
+            .map { prefs ->
+                prefs[Keys.USER_WEIGHT] ?: 50
+            }
+    }
+    suspend fun saveWeight(value: Int) {
+        dataStore.edit { prefs ->
+            prefs[Keys.USER_WEIGHT] = value
+        }
+    }
+    //------------------ HEIGHT
+    fun getHeight(): Flow<Int> {
+        return dataStore.data
+            .catch { emit(emptyPreferences()) }
+            .map { prefs ->
+                prefs[Keys.USER_HEIGHT] ?: 150
+            }
+    }
+    suspend fun saveHeight(value: Int) {
+        dataStore.edit { prefs ->
+            prefs[Keys.USER_HEIGHT] = value
+        }
+    }
+    //------------------ AGE
+    fun getAge(): Flow<Int> {
+        return dataStore.data
+            .catch { emit(emptyPreferences()) }
+            .map { prefs ->
+                prefs[Keys.USER_AGE] ?: 21
+            }
+    }
+    suspend fun saveAge(value: Int) {
+        dataStore.edit { prefs ->
+            prefs[Keys.USER_AGE] = value
         }
     }
 
