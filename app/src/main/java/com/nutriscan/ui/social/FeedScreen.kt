@@ -10,13 +10,16 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Comment
@@ -26,6 +29,7 @@ import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Login
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -36,6 +40,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -54,11 +59,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.rememberAsyncImagePainter
 import com.nutriscan.data.remote.models.Post
+import com.nutriscan.data.remote.models.Comment
+import kotlinx.coroutines.flow.flowOf
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -83,6 +91,15 @@ fun FeedScreen(
     LaunchedEffect(Unit) {
         // Check if Firebase is available
         viewModel.checkFirebaseAvailability()
+    }
+
+    val onAddComment: (String, String) -> Unit = {
+        postID, commentText ->
+        if (authState == SocialViewModel.AuthState.AUTHENTICATED) {
+            viewModel.addComment(postID, commentText)
+        } else {
+            viewModel.setError("Please sign in to comment")
+        }
     }
 
     Scaffold(
@@ -205,9 +222,14 @@ fun FeedScreen(
                             onCommentClick = {
                                 /* Navigate to comments */
                             },
+                            onAddComment = {
+                                commentText ->
+                                onAddComment(post.postID, commentText)
+                            },
                             onProfileClick = {
                                 onNavigateToProfile(post.userID)
-                            }
+                            },
+                            isLiked = isLiked
                         )
                     }
                 }
@@ -221,10 +243,23 @@ fun PostCard(
     post: Post,
     onLikeClick: () -> Unit,
     onCommentClick: () -> Unit,
-    onProfileClick: () -> Unit
+    onAddComment: (String) -> Unit,
+    onProfileClick: () -> Unit,
+    isLiked: Boolean,
+    viewModel: SocialViewModel = hiltViewModel()
 ) {
-    var isLiked by remember { mutableStateOf(false) }
     val timeFormat = remember { SimpleDateFormat("MMM d, h:mm a", Locale.getDefault()) }
+
+    var showComments by remember { mutableStateOf(false) }
+    var newCommentText by remember { mutableStateOf("") }
+
+    val comments by remember(showComments) {
+        if (showComments) {
+            viewModel.getCommentsForPost(post.postID)
+        } else {
+            flowOf(emptyList())
+        }
+    }.collectAsState(initial = emptyList())
 
     Card(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
@@ -240,21 +275,25 @@ fun PostCard(
             ) {
                 // user profile image
                 Surface(
-                    modifier = Modifier.size(40.dp).clip(CircleShape).clickable() { onProfileClick() },
+                    modifier = Modifier.size(40.dp).clip(CircleShape),
                     color = MaterialTheme.colorScheme.primaryContainer
                 ) {
-                    if (post.userProfileImageUrl.isNotEmpty()) {
-                        Image(
-                            painter = rememberAsyncImagePainter(post.userProfileImageUrl),
-                            contentDescription = "Profile",
-                            contentScale = ContentScale.Crop
-                        )
-                    } else {
-                        Icon(
-                            Icons.Default.Person,
-                            contentDescription = null,
-                            modifier = Modifier.padding(8.dp)
-                        )
+                    Box(
+                        modifier = Modifier.fillMaxSize().clickable { onProfileClick() }
+                    ) {
+                        if (post.userProfileImageUrl.isNotEmpty()) {
+                            Image(
+                                painter = rememberAsyncImagePainter(post.userProfileImageUrl),
+                                contentDescription = "Profile",
+                                contentScale = ContentScale.Crop
+                            )
+                        } else {
+                            Icon(
+                                Icons.Default.Person,
+                                contentDescription = null,
+                                modifier = Modifier.padding(8.dp)
+                            )
+                        }
                     }
                 }
 
@@ -320,6 +359,94 @@ fun PostCard(
                 }
             }
 
+            // comments area
+            if (post.numComments > 0) {
+                Column(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                ) {
+                    TextButton(
+                        onClick = { showComments = !showComments },  // Toggle comments
+                        modifier = Modifier.padding(0.dp)
+                    ) {
+                        Text(
+                            text = if (showComments) "Hide comments" else "View all ${post.numComments} comments",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 13.sp
+                        )
+                    }
+
+                    // Show comments if expanded
+                    if (showComments) {
+                        val visibleComments = comments.take(5) // Show only first 5 comments
+                        val remainingCount = comments.size - visibleComments.size
+
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 200.dp)
+                                .verticalScroll(rememberScrollState())
+                        ) {
+                            visibleComments.forEach { comment ->
+                                CommentItem(comment = comment)
+                            }
+
+                            if (remainingCount > 0) {
+                                TextButton(
+                                    onClick = { /* Navigate to full comments screen */ },
+                                    modifier = Modifier.padding(top = 4.dp)
+                                ) {
+                                    Text(
+                                        text = "View $remainingCount more comments",
+                                        fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            }
+                        }
+                    } else {
+                        // Show only last 2 comments as preview
+                        comments.takeLast(2).forEach { comment ->
+                            CommentPreview(comment = comment)
+                        }
+                    }
+                }
+            }
+
+            // Quick comment input
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedTextField(
+                    value = newCommentText,
+                    onValueChange = { newCommentText = it },
+                    placeholder = { Text("Add a comment...") },
+                    modifier = Modifier.weight(1f),
+                    maxLines = 2,
+                    shape = RoundedCornerShape(20.dp)
+                )
+                IconButton(
+                    onClick = {
+                        if (newCommentText.isNotBlank()) {
+                            onAddComment(newCommentText)
+                            newCommentText = ""
+                        }
+                    },
+                    enabled = newCommentText.isNotBlank()
+                ) {
+                    Icon(
+                        Icons.Default.Send,
+                        contentDescription = "Send",
+                        tint = if (newCommentText.isNotBlank())
+                            MaterialTheme.colorScheme.primary
+                        else
+                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+                    )
+                }
+            }
+
             // action buttons
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
@@ -329,7 +456,7 @@ fun PostCard(
                 IconButton(onClick = onLikeClick) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
-                            if (isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                            imageVector = if (isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                             contentDescription = "Like",
                             tint = if (isLiked) Color.Red else MaterialTheme.colorScheme.onSurface
                         )
@@ -342,7 +469,7 @@ fun PostCard(
                 IconButton(onClick = onCommentClick) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
-                            Icons.Default.Comment,
+                            imageVector = Icons.Default.Comment,
                             contentDescription = "Comment"
                         )
                         Spacer(modifier = Modifier.width(4.dp))
@@ -353,12 +480,54 @@ fun PostCard(
                 // share button
                 IconButton(onClick = { /* Share */ }) {
                     Icon(
-                        Icons.Default.Share,
+                        imageVector = Icons.Default.Share,
                         contentDescription = "Share"
                     )
                 }
             }
         }
+    }
+}
+
+@Composable
+fun CommentPreview(comment: Comment) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 4.dp)
+    ) {
+        Text(
+            text = comment.username,
+            fontWeight = FontWeight.Bold,
+            fontSize = 12.sp
+        )
+        Spacer(modifier = Modifier.width(4.dp))
+        Text(
+            text = comment.content,
+            fontSize = 12.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+@Composable
+fun CommentItem(comment: Comment) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 4.dp)
+    ) {
+        Text(
+            text = comment.username,
+            fontWeight = FontWeight.Bold,
+            fontSize = 13.sp
+        )
+        Spacer(modifier = Modifier.width(4.dp))
+        Text(
+            text = comment.content,
+            fontSize = 13.sp
+        )
     }
 }
 

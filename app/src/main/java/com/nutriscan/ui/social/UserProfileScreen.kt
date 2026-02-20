@@ -45,9 +45,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.viewModelScope
 import coil.compose.rememberAsyncImagePainter
 import com.nutriscan.data.remote.models.Post
 import com.nutriscan.data.remote.models.User
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -76,9 +79,15 @@ fun UserProfileScreen(
     val isCurrentUser = currentUserID?.uid == userID
 
     // call sign out and navigate
-    val handleSignOut = {
-        socialViewModel.signOut()
-        onSignOut()
+    fun handleSignOut() {
+        onBack()
+
+        viewModel.viewModelScope.launch {
+            delay(100)
+
+            socialViewModel.signOut()
+            onSignOut()
+        }
     }
 
     Scaffold(
@@ -158,7 +167,7 @@ fun UserProfileScreen(
                             }
                         },
                         isCurrentUser = isCurrentUser,
-                        onSignOut = handleSignOut
+                        onSignOut = { handleSignOut() }
                     )
                 }
 

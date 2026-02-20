@@ -76,7 +76,9 @@ class SocialRepository @Inject constructor(
         val listener = usersCollection.document(currentUser.uid).addSnapshotListener {
             snapshot, error ->
             if (error != null) {
-                close(error)
+                if (error.code != FirebaseFirestoreException.Code.PERMISSION_DENIED) {
+                    try { close(error) } catch (e: Exception) { /* Already closed */ }
+                }
 
                 return@addSnapshotListener
             }
@@ -323,7 +325,7 @@ class SocialRepository @Inject constructor(
 
             // increment post likes count
             postsCollection.document(postID)
-                .update("likesCount", FieldValue.increment(1))
+                .update("numLikes", FieldValue.increment(1))
                 .await()
 
             Result.success(value = true)
@@ -340,7 +342,7 @@ class SocialRepository @Inject constructor(
 
             // Decrement post likes count
             postsCollection.document(postId)
-                .update("likesCount", FieldValue.increment(-1))
+                .update("numLikes", FieldValue.increment(-1))
                 .await()
 
             Result.success(value = true)
@@ -392,7 +394,7 @@ class SocialRepository @Inject constructor(
 
             // Increment post comments count
             postsCollection.document(postID)
-                .update("commentsCount", FieldValue.increment(1))
+                .update("numComments", FieldValue.increment(1))
                 .await()
 
             Result.success(comment.commentID)
@@ -433,11 +435,11 @@ class SocialRepository @Inject constructor(
 
             // Update counts
             usersCollection.document(currentUser.uid)
-                .update("followingCount", FieldValue.increment(1))
+                .update("numFollowing", FieldValue.increment(1))
                 .await()
 
             usersCollection.document(userIDToFollow)
-                .update("followersCount", FieldValue.increment(1))
+                .update("numFollowers", FieldValue.increment(1))
                 .await()
 
             Result.success(true)
@@ -454,11 +456,11 @@ class SocialRepository @Inject constructor(
 
             // Update counts
             usersCollection.document(currentUser.uid)
-                .update("followingCount", FieldValue.increment(-1))
+                .update("numFollowing", FieldValue.increment(-1))
                 .await()
 
             usersCollection.document(userIDToUnfollow)
-                .update("followersCount", FieldValue.increment(-1))
+                .update("numFollowers", FieldValue.increment(-1))
                 .await()
 
             Result.success(true)

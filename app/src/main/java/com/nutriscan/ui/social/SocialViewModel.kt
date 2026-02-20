@@ -13,6 +13,7 @@ import com.nutriscan.data.remote.models.User
 import com.nutriscan.data.remote.models.Comment
 import com.nutriscan.data.repository.SocialRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -81,7 +82,7 @@ class SocialViewModel @Inject constructor(
             }
 
             try {
-                socialRepository.getFeedPosts(currentUserID)
+                socialRepository.getFeedPostsRealtime(currentUserID)
                     .catch {
                         e ->
                         if (e.message?.contains("PERMISSION_DENIED") == true) {
@@ -157,6 +158,10 @@ class SocialViewModel @Inject constructor(
                     _error.value = e.message
                 }
         }
+    }
+
+    fun getCommentsForPost(postId: String): Flow<List<Comment>> {
+        return socialRepository.getCommentsForPost(postId)
     }
 
     // not using, i put in user profile vm
@@ -318,6 +323,8 @@ class SocialViewModel @Inject constructor(
                 _isSignInSuccessful.value = false
                 _isSignUpSuccessful.value = false
                 _firebaseAvailable.value = null
+
+                delay(200)
 
                 auth.signOut()
 
