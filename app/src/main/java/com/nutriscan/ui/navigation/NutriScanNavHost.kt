@@ -5,6 +5,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import com.nutriscan.QuestionnaireScreen
+import com.nutriscan.WelcomeScreen
 import com.nutriscan.ui.activity.ActivityTrackerScreen
 import com.nutriscan.ui.addmeal.AddMealScreen
 import com.nutriscan.ui.analytics.AnalyticsScreen
@@ -22,6 +23,7 @@ import com.nutriscan.ui.social.CreatePostScreen
  * Navigation routes for the app.
  */
 sealed class Screen(val route: String) {
+    object Welcome : Screen("welcome")
     object Questionnaire : Screen("questionnaire")
 
     object Dashboard : Screen("dashboard")
@@ -54,8 +56,23 @@ fun NutriScanNavHost(
 ) {
     NavHost(
         navController = navController,
-        startDestination = if (questionnaireDone) Screen.Dashboard.route else Screen.Questionnaire.route
+        startDestination = if (questionnaireDone) Screen.Dashboard.route else Screen.Welcome.route
     ) {
+        composable(Screen.Welcome.route) {
+            WelcomeScreen(
+                onGetStarted = {
+                    navController.navigate(Screen.Questionnaire.route) {
+                        popUpTo(Screen.Welcome.route) { inclusive = true }
+                    }
+                },
+                onSkip = {
+                    navController.navigate(Screen.Dashboard.route) {
+                        popUpTo(Screen.Welcome.route) { inclusive = true }
+                    }
+                }
+            )
+        }
+
         composable(Screen.Questionnaire.route) {
             QuestionnaireScreen(
                 onFinished = { targets ->
