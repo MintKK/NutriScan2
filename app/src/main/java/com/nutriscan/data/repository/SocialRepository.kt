@@ -114,13 +114,15 @@ class SocialRepository @Inject constructor(
                 foodImageUrl = imageUrl,
                 foodName = foodName,
                 numCalories = calories,
-                numProtein = protein,
-                trendingScore = calculateTrendingScore(likes = 0, comments = 0, timestamp = System.currentTimeMillis())
+                numProtein = protein
             )
+
+            // probably have to call this calculation in real time at intervals e.g. every hour
+            post.trendingScore = calculateTrendingScore(likes = post.numLikes, comments = post.numComments, timestamp = System.currentTimeMillis())
 
             postsCollection.document(post.postID).set(post).await()
 
-            // Increment post count
+            // increment post count
             usersCollection.document(currentUser.uid)
                 .update("postCount", FieldValue.increment(1))
                 .await()
@@ -133,8 +135,13 @@ class SocialRepository @Inject constructor(
 
     suspend fun uploadPostImage(imageUri: Uri): Result<String> {
         return try {
-            val filename = "posts/${UUID.randomUUID()}.jpg"
 
+            // testing will skip actual upload for local file URIs
+            if (imageUri.scheme == "file") {
+                return Result.success("https://via.placeholder.com/300x300?text=Test+Food")
+            }
+
+            val filename = "posts/${UUID.randomUUID()}.jpg"
             val ref = storage.reference.child(filename)
             ref.putFile(imageUri).await()
 
@@ -142,6 +149,7 @@ class SocialRepository @Inject constructor(
 
             Result.success(value = downloadUrl.toString())
         } catch (e: Exception) {
+            e.printStackTrace()
             Result.failure(exception = e)
         }
     }

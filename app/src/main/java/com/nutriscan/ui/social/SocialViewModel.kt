@@ -1,5 +1,6 @@
 package com.nutriscan.ui.social
 
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.auth.FirebaseAuth
@@ -103,6 +104,27 @@ class SocialViewModel @Inject constructor(
         }
     }
 
+    fun createPost(
+        caption: String,
+        foodName: String,
+        calories: Int,
+        protein: Float,
+        imageUri: Uri
+    ) {
+        viewModelScope.launch {
+            socialRepository.createPost(
+                caption = caption,
+                foodName = foodName,
+                calories = calories,
+                protein = protein,
+                imageUri = imageUri
+            ).onFailure {
+                e ->
+                _error.value = e.message
+            }
+        }
+    }
+
     fun likePost(postID: String) {
         viewModelScope.launch {
             socialRepository.likePost(postID)
@@ -137,6 +159,7 @@ class SocialViewModel @Inject constructor(
         }
     }
 
+    // not using, i put in user profile vm
     fun followUser(userID: String) {
         viewModelScope.launch {
             socialRepository.followUser(userID)
@@ -147,6 +170,7 @@ class SocialViewModel @Inject constructor(
         }
     }
 
+    // not using, i put in user profile vm
     fun unfollowUser(userID: String) {
         viewModelScope.launch {
             socialRepository.unfollowUser(userID)

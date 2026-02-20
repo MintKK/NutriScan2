@@ -14,6 +14,7 @@ import com.nutriscan.ui.calorietarget.CalorieTargetScreen
 import com.nutriscan.ui.dashboard.DashboardScreen
 import com.nutriscan.ui.social.FeedScreen
 import com.nutriscan.ui.social.UserProfileScreen
+import com.nutriscan.ui.social.CreatePostScreen
 
 /**
  * Navigation routes for the app.
@@ -97,7 +98,9 @@ fun NutriScanNavHost(
                     userID ->
                     navController.navigate(Screen.UserProfile.passUserID(userID))
                 },
-                onNavigateToCreatePost = {  },
+                onNavigateToCreatePost = {
+                    navController.navigate(Screen.CreatePost.route)
+                },
                 onNavigateToSignIn = {
                     navController.navigate(Screen.SignIn.route)
                 },
@@ -115,6 +118,12 @@ fun NutriScanNavHost(
                 onBack = { navController.popBackStack() },
                 onNavigateToFeed = { navController.popBackStack(Screen.Feed.route, false) },
                 onSignOut = { navController.popBackStack(Screen.Feed.route, false) }
+            )
+        }
+
+        composable(Screen.CreatePost.route) {
+            CreatePostScreen(
+                onBack = { navController.popBackStack() }
             )
         }
 

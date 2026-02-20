@@ -427,7 +427,7 @@ fun ErrorScreen(
             } else if (error.contains("timeout", ignoreCase = true) ||
                 error.contains("connection", ignoreCase = true)) {
                 Button(onClick = onRetry) {
-                    Text("Retry")
+                    Text("Retry")   
                 }
             } else if (error.contains("Google Play Services", ignoreCase = true)) {
                 Text(
