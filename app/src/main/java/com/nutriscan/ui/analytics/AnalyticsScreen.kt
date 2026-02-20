@@ -4,13 +4,16 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddLocation
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.TrendingDown
 import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -25,6 +28,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
@@ -121,12 +125,22 @@ fun AnalyticsScreen(
                                     fontWeight = FontWeight.Bold
                                 )
                             }
-                            Icon(
-                                Icons.Default.TrendingUp,
-                                contentDescription = null,
-                                modifier = Modifier.size(48.dp),
-                                tint = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
+                            Box(
+                                modifier = Modifier.size(48.dp)
+                                    .background(
+                                        color = if (weeklyAverage > targetCalories) Color(0x80B77676)
+                                        else Color(0x807FC382),
+                                        shape = RoundedCornerShape(12.dp)
+                                    )
+                            ) {
+                                Icon(
+                                    if (weeklyAverage > targetCalories) Icons.Default.TrendingDown else Icons.Default.TrendingUp,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(48.dp),
+                                    tint = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            }
+
                         }
                     }
                 }
@@ -176,7 +190,7 @@ fun AnalyticsScreen(
             )
             
             last7Days.reversed().forEach { day ->
-                DailyCalorieRow(day)
+                DailyCalorieRow(day, targetCalories)
             }
         }
     }
@@ -242,7 +256,6 @@ fun CalorieTrendChart(
                 // Grids
                 val numberOfGridLines = 4
                 val gridColor = Color.Gray.copy(alpha = 0.35f)
-
                 for (i in 0..numberOfGridLines) {
                     val y = chartBottom - i * (chartHeight / numberOfGridLines)
                     drawLine(
@@ -298,7 +311,11 @@ fun CalorieTrendChart(
                         }
 
                     val deviationLayoutResult = textMeasurer.measure(
-                        text = formattedDeviation
+                        text = formattedDeviation,
+                        style = TextStyle(
+                            color = primaryColor,
+                            fontWeight = FontWeight.Bold
+                        )
                     )
 
                     // deviation
@@ -306,7 +323,7 @@ fun CalorieTrendChart(
                         deviationLayoutResult,
                         topLeft = Offset(
                             x + (barWidth - deviationLayoutResult.size.width) / 2f, // center text
-                            y - deviationLayoutResult.size.height - 8f // move above bar with spacing
+                            y - deviationLayoutResult.size.height - 10f // move above bar with spacing
                         )
                     )
 
@@ -317,7 +334,6 @@ fun CalorieTrendChart(
                 if (data.size > 1) {
                     val path = Path()
                     val points = data.mapIndexed { index, daily ->
-//                        val rawX = index * spacing + spacing / 2f
                         val centerX = index * spacing + spacing / 2f
                         val y = chartBottom - (daily.totalKcal / maxValue) * chartHeight
                         Offset(centerX, y)
@@ -424,7 +440,7 @@ fun CalorieTrendChart(
 }
 
 @Composable
-fun DailyCalorieRow(day: DailyCalories) {
+fun DailyCalorieRow(day: DailyCalories, targetCalories: Int) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(8.dp)
@@ -438,14 +454,26 @@ fun DailyCalorieRow(day: DailyCalories) {
         ) {
             Text(
                 day.day,
-                style = MaterialTheme.typography.bodyMedium
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.weight(1f)
             )
-            Text(
-                "${day.totalKcal} kcal",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.primary
-            )
+            Box(
+                modifier = Modifier.wrapContentWidth()
+                    .background(
+                        color = if (day.totalKcal > targetCalories) Color(0x80B77676)
+                        else Color.Transparent,
+                        shape = RoundedCornerShape(16.dp)
+                    ).padding(horizontal = 12.dp, vertical = 6.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    "${day.totalKcal} kcal",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+
         }
     }
 }

@@ -10,6 +10,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Female
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.Male
 import androidx.compose.material.icons.filled.Man
@@ -137,7 +138,7 @@ fun CalorieTargetScreen(
                                 verticalArrangement = Arrangement.Center
                             ) {
                                 Icon(
-                                    Icons.Default.Male,
+                                    if (isFemale) Icons.Default.Female else Icons.Default.Male,
                                     contentDescription = null,
                                     modifier = Modifier.size(48.dp),
                                     tint = MaterialTheme.colorScheme.onPrimaryContainer
