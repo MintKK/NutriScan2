@@ -43,6 +43,7 @@ class ActivityTrackerViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     val activeMinutes: StateFlow<Long> = activityRepository.getTodayActiveMinutes()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0L)
+    val activeSeconds: StateFlow<Long> = StepCounterService.activeSeconds
 
     // ---- Service state ----
     val isTrackingActive: StateFlow<Boolean> = StepCounterService.isServiceRunning

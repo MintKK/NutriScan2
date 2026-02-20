@@ -43,6 +43,7 @@ fun ActivityTrackerScreen(
     val distanceMeters by viewModel.distanceMeters.collectAsState()
     val currentActivity by viewModel.currentActivity.collectAsState()
     val activeMinutes by viewModel.activeMinutes.collectAsState()
+    val activeSeconds by viewModel.activeSeconds.collectAsState()
     val isTracking by viewModel.isTrackingActive.collectAsState()
     val isPaused by viewModel.isPaused.collectAsState()
     val timeline by viewModel.activityTimeline.collectAsState()
@@ -218,7 +219,7 @@ fun ActivityTrackerScreen(
                     StatCard(
                         modifier = Modifier.weight(1f),
                         icon = Icons.Default.Timer,
-                        value = "${activeMinutes}m",
+                        value = "${activeSeconds / 60}m ${activeSeconds % 60}s",
                         label = "Active Time",
                         color = Color(0xFF2196F3)
                     )

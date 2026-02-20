@@ -42,6 +42,7 @@ fun CaloriesBurnedScreen(
     val distanceMeters by viewModel.distanceMeters.collectAsState()
     val currentActivity by viewModel.currentActivity.collectAsState()
     val activeMinutes by viewModel.activeMinutes.collectAsState()
+    val activeSeconds by viewModel.activeSeconds.collectAsState()
     val isTracking by viewModel.isTrackingActive.collectAsState()
     val caloriesBurned by viewModel.caloriesBurned.collectAsState()
     val netCalories by viewModel.netCalories.collectAsState()
@@ -124,7 +125,7 @@ fun CaloriesBurnedScreen(
                 QuickStatCard(
                     modifier = Modifier.weight(1f),
                     icon = Icons.Default.Timer,
-                    value = "${activeMinutes}m",
+                    value = "${activeSeconds / 60}m ${activeSeconds % 60}s",
                     label = "Active",
                     color = Color(0xFF2196F3)
                 )
@@ -263,7 +264,9 @@ private fun ActivitySummaryCard(
         )
     ) {
         Column(
-            modifier = Modifier.padding(20.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
