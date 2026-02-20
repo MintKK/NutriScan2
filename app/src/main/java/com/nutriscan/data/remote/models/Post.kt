@@ -15,5 +15,5 @@ data class Post(
     val comments: List<String> = emptyList(),
     val created: Long = System.currentTimeMillis(),
     val updated: Long = System.currentTimeMillis(),
-    val trendingScore: Double = 0.0
+    var trendingScore: Double = 0.0
 )
