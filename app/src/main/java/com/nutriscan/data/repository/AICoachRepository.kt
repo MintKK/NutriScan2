@@ -235,4 +235,82 @@ class AICoachRepository @Inject constructor(
             else -> null
         }
     }
+
+    // ============ SMART SWITCH SUGGESTIONS ============
+
+    /**
+     * Smart Swap Map: maps common high-calorie foods to healthier alternatives.
+     * Key = lowercase keyword found in food name.
+     * Value = (alternative name, reason string).
+     */
+    private val swapMap = mapOf(
+        "pizza" to SwapSuggestion("Grilled Chicken Wrap", "~250 fewer kcal, +15g protein"),
+        "donut" to SwapSuggestion("Greek Yogurt with Honey", "~200 fewer kcal, +12g protein"),
+        "doughnut" to SwapSuggestion("Greek Yogurt with Honey", "~200 fewer kcal, +12g protein"),
+        "burger" to SwapSuggestion("Turkey Lettuce Wrap", "~300 fewer kcal, less saturated fat"),
+        "fries" to SwapSuggestion("Sweet Potato Wedges", "~100 fewer kcal, more fiber & vitamin A"),
+        "french fries" to SwapSuggestion("Sweet Potato Wedges", "~100 fewer kcal, more fiber & vitamin A"),
+        "fried chicken" to SwapSuggestion("Grilled Chicken Breast", "~150 fewer kcal, -10g fat"),
+        "fried rice" to SwapSuggestion("Steamed Rice with Veggies", "~120 fewer kcal, less oil"),
+        "ice cream" to SwapSuggestion("Frozen Yogurt", "~100 fewer kcal, +5g protein"),
+        "chocolate" to SwapSuggestion("Dark Chocolate (85%)", "Less sugar, more antioxidants"),
+        "cake" to SwapSuggestion("Protein Bar", "~150 fewer kcal, +15g protein"),
+        "pasta" to SwapSuggestion("Zucchini Noodles with Sauce", "~200 fewer kcal, more fiber"),
+        "soda" to SwapSuggestion("Sparkling Water with Lemon", "~140 fewer kcal, zero sugar"),
+        "chips" to SwapSuggestion("Air-popped Popcorn", "~100 fewer kcal, whole grain fiber"),
+        "nutella" to SwapSuggestion("Almond Butter", "Less sugar, healthy fats, +3g protein"),
+        "hot dog" to SwapSuggestion("Chicken Sausage", "~80 fewer kcal, less sodium"),
+        "pancake" to SwapSuggestion("Oat Pancakes", "More fiber, +5g protein, slower energy release"),
+        "waffle" to SwapSuggestion("Oat Pancakes", "More fiber, +5g protein, slower energy release"),
+        "bread" to SwapSuggestion("Whole Grain Bread", "More fiber, slower blood sugar rise"),
+        "candy" to SwapSuggestion("Mixed Nuts (30g)", "Healthy fats, protein, and sustained energy"),
+        "cookie" to SwapSuggestion("Apple Slices with Peanut Butter", "~100 fewer kcal, more fiber & protein")
+    )
+
+    /**
+     * Analyze a food item and return a "Smart Switch" suggestion if applicable.
+     * Triggers when:
+     * 1. The food name matches a keyword in the swap map, OR
+     * 2. The food is calorie-dense (>350 kcal/100g) AND protein-low (<8g/100g)
+     */
+    fun getSuggestionForFood(food: com.nutriscan.data.local.entity.FoodItem): CoachInsight? {
+        val nameLower = food.name.lowercase()
+
+        // 1. Check swap map by keyword
+        for ((keyword, swap) in swapMap) {
+            if (nameLower.contains(keyword)) {
+                return CoachInsight(
+                    emoji = "🔄",
+                    message = "Try \"${swap.alternative}\" instead — ${swap.reason}",
+                    type = InsightType.TIP
+                )
+            }
+        }
+
+        // 2. Generic analysis: high calorie + low protein
+        if (food.kcalPer100g > 350 && food.proteinPer100g < 8f) {
+            return CoachInsight(
+                emoji = "💡",
+                message = "This is calorie-dense (${food.kcalPer100g} kcal/100g) with low protein. Consider a high-protein alternative!",
+                type = InsightType.WARNING
+            )
+        }
+
+        // 3. High fat warning
+        if (food.fatPer100g > 25f && food.proteinPer100g < 10f) {
+            return CoachInsight(
+                emoji = "🫒",
+                message = "High fat content (${food.fatPer100g}g/100g). A grilled or baked version would cut fat significantly.",
+                type = InsightType.TIP
+            )
+        }
+
+        return null
+    }
 }
+
+private data class SwapSuggestion(
+    val alternative: String,
+    val reason: String
+)
+

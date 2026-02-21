@@ -46,10 +46,14 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.nutriscan.data.local.entity.FoodItem
+import com.nutriscan.data.repository.CoachInsight
+import com.nutriscan.data.repository.InsightType
 import com.nutriscan.domain.model.PortionPreset
 import com.nutriscan.ml.FoodMatchResult
 import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
@@ -98,6 +102,7 @@ fun AddMealScreen(
                         portionGrams = uiState.portionGrams,
                         nutrition = uiState.calculatedNutrition,
                         isLogging = uiState.isLogging,
+                        coachSuggestion = uiState.coachSuggestion,
                         onPortionChange = { viewModel.setPortionGrams(it) },
                         onPresetSelect = { viewModel.setPortionPreset(it) },
                         onConfirm = { viewModel.confirmMeal() },
@@ -387,6 +392,7 @@ fun ConfirmationSheet(
     portionGrams: Int,
     nutrition: com.nutriscan.domain.model.NutritionResult,
     isLogging: Boolean,
+    coachSuggestion: CoachInsight? = null,
     onPortionChange: (Int) -> Unit,
     onPresetSelect: (PortionPreset) -> Unit,
     onConfirm: () -> Unit,
@@ -522,6 +528,60 @@ fun ConfirmationSheet(
                     NutrientColumn("Protein", "%.1f".format(nutrition.protein), "g")
                     NutrientColumn("Carbs", "%.1f".format(nutrition.carbs), "g")
                     NutrientColumn("Fat", "%.1f".format(nutrition.fat), "g")
+                }
+            }
+        }
+        
+        Spacer(modifier = Modifier.height(12.dp))
+        
+        // Smart Switch Suggestion
+        if (coachSuggestion != null) {
+            val bubbleColor = when (coachSuggestion.type) {
+                InsightType.TIP -> Color(0xFFE3F2FD)
+                InsightType.WARNING -> Color(0xFFFFF3E0)
+                InsightType.SUCCESS -> Color(0xFFE8F5E9)
+                InsightType.INFO -> Color(0xFFF3E5F5)
+            }
+            val accentColor = when (coachSuggestion.type) {
+                InsightType.TIP -> Color(0xFF2196F3)
+                InsightType.WARNING -> Color(0xFFFF9800)
+                InsightType.SUCCESS -> Color(0xFF4CAF50)
+                InsightType.INFO -> Color(0xFF9C27B0)
+            }
+            Card(
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = bubbleColor),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(accentColor.copy(alpha = 0.15f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(coachSuggestion.emoji, fontSize = 18.sp)
+                    }
+                    Spacer(Modifier.width(10.dp))
+                    Column {
+                        Text(
+                            "Coach's Tip",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = accentColor
+                        )
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            coachSuggestion.message,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
                 }
             }
         }
@@ -1352,6 +1412,163 @@ fun BarcodeScannerLauncher(
                         "Opening barcode scanner...",
                         style = MaterialTheme.typography.bodyLarge
                     )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * OCR Label Scanner: captures or picks an image of a nutrition label,
+ * then sends it to the ViewModel for OCR processing.
+ */
+@Composable
+fun OCRLabelScanner(
+    isProcessing: Boolean,
+    error: String?,
+    onImageCaptured: (Bitmap) -> Unit,
+    onCancel: () -> Unit
+) {
+    val context = LocalContext.current
+    var galleryError by remember { mutableStateOf<String?>(null) }
+
+    // Gallery picker for label images
+    val galleryLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            try {
+                val bitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    ImageDecoder.decodeBitmap(
+                        ImageDecoder.createSource(context.contentResolver, uri)
+                    ) { decoder, _, _ ->
+                        decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+                        decoder.isMutableRequired = true
+                    }
+                } else {
+                    @Suppress("DEPRECATION")
+                    MediaStore.Images.Media.getBitmap(context.contentResolver, uri)
+                }
+                onImageCaptured(bitmap)
+            } catch (e: Exception) {
+                galleryError = "Could not load image: ${e.localizedMessage}"
+            }
+        }
+    }
+
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            modifier = Modifier.padding(32.dp)
+        ) {
+            when {
+                isProcessing -> {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(48.dp),
+                        color = MaterialTheme.colorScheme.tertiary
+                    )
+                    Text(
+                        "Reading nutrition label...",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        "Extracting calories, protein, carbs & fat",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                error != null -> {
+                    Icon(
+                        Icons.Default.Warning,
+                        contentDescription = null,
+                        modifier = Modifier.size(48.dp),
+                        tint = MaterialTheme.colorScheme.error
+                    )
+                    Text(
+                        error,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.error,
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Button(
+                        onClick = { galleryLauncher.launch("image/*") }
+                    ) {
+                        Icon(Icons.Default.Refresh, null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Try Again")
+                    }
+                    TextButton(onClick = onCancel) {
+                        Text("Cancel")
+                    }
+                }
+                galleryError != null -> {
+                    Icon(
+                        Icons.Default.Warning,
+                        contentDescription = null,
+                        modifier = Modifier.size(48.dp),
+                        tint = MaterialTheme.colorScheme.error
+                    )
+                    Text(
+                        galleryError!!,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.error,
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Button(
+                        onClick = {
+                            galleryError = null
+                            galleryLauncher.launch("image/*")
+                        }
+                    ) {
+                        Text("Try Again")
+                    }
+                    TextButton(onClick = onCancel) {
+                        Text("Cancel")
+                    }
+                }
+                else -> {
+                    // Main options screen
+                    Icon(
+                        Icons.Default.DocumentScanner,
+                        contentDescription = null,
+                        modifier = Modifier.size(64.dp),
+                        tint = MaterialTheme.colorScheme.tertiary
+                    )
+                    Text(
+                        "Scan Nutrition Label",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        "Take a photo or pick an image of a nutrition facts label to auto-fill calorie and macro data.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        textAlign = TextAlign.Center,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Pick from gallery
+                    Button(
+                        onClick = { galleryLauncher.launch("image/*") },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.PhotoLibrary, null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Choose from Gallery")
+                    }
+
+                    // Cancel
+                    TextButton(onClick = onCancel) {
+                        Text("Cancel")
+                    }
                 }
             }
         }

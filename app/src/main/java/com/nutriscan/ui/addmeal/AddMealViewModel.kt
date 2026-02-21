@@ -10,6 +10,8 @@ import com.nutriscan.barcode.BarcodeResult
 import com.nutriscan.barcode.BarcodeService
 import com.nutriscan.util.MealImageStorage
 import dagger.hilt.android.qualifiers.ApplicationContext
+import com.nutriscan.data.repository.AICoachRepository
+import com.nutriscan.data.repository.CoachInsight
 import com.nutriscan.data.repository.FoodRepository
 import com.nutriscan.data.repository.MealRepository
 import com.nutriscan.domain.model.NutritionResult
@@ -21,6 +23,7 @@ import com.nutriscan.ml.FoodClassificationResult
 import com.nutriscan.ml.FoodClassificationService
 import com.nutriscan.ml.FoodMatchResult
 import com.nutriscan.ml.FoodMatchingService
+import com.nutriscan.ml.OCRScannerService
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -46,7 +49,9 @@ class AddMealViewModel @Inject constructor(
     private val foodRepository: FoodRepository,
     private val mealRepository: MealRepository,
     private val calculateNutrition: CalculateNutritionUseCase,
-    private val barcodeService: BarcodeService
+    private val barcodeService: BarcodeService,
+    private val aiCoachRepository: AICoachRepository,
+    private val ocrScannerService: OCRScannerService
 ) : ViewModel() {
     
     companion object {
@@ -259,11 +264,13 @@ class AddMealViewModel @Inject constructor(
     fun selectFromCandidates(match: FoodMatchResult) {
         match.matchedFood?.let { food ->
             val nutrition = calculateNutrition(food, _uiState.value.portionGrams)
+            val suggestion = aiCoachRepository.getSuggestionForFood(food)
             _uiState.update { state ->
                 state.copy(
                     selectedFood = food,
                     mlLabel = match.mlLabel,
                     calculatedNutrition = nutrition,
+                    coachSuggestion = suggestion,
                     showConfirmation = true,
                     showCandidateSelection = false
                 )
@@ -277,9 +284,11 @@ class AddMealViewModel @Inject constructor(
     fun selectFood(food: FoodItem) {
         _uiState.update { state ->
             val nutrition = calculateNutrition(food, state.portionGrams)
+            val suggestion = aiCoachRepository.getSuggestionForFood(food)
             state.copy(
                 selectedFood = food,
                 calculatedNutrition = nutrition,
+                coachSuggestion = suggestion,
                 showConfirmation = true,
                 showCandidateSelection = false,
                 showManualSearch = false
@@ -357,7 +366,8 @@ class AddMealViewModel @Inject constructor(
             showConfirmation = false,
             showCamera = false,
             showGallery = false,
-            showBarcode = false
+            showBarcode = false,
+            showOCRScanner = false
         ) }
     }
     
@@ -371,7 +381,8 @@ class AddMealViewModel @Inject constructor(
             showManualSearch = false,
             showCandidateSelection = false,
             showConfirmation = false,
-            showBarcode = false
+            showBarcode = false,
+            showOCRScanner = false
         ) }
     }
     
@@ -385,7 +396,8 @@ class AddMealViewModel @Inject constructor(
             showManualSearch = false,
             showCandidateSelection = false,
             showConfirmation = false,
-            showBarcode = false
+            showBarcode = false,
+            showOCRScanner = false
         ) }
     }
     
@@ -427,7 +439,8 @@ class AddMealViewModel @Inject constructor(
             showGallery = false,
             showManualSearch = false,
             showCandidateSelection = false,
-            showConfirmation = false
+            showConfirmation = false,
+            showOCRScanner = false
         ) }
     }
     
@@ -442,9 +455,11 @@ class AddMealViewModel @Inject constructor(
                 is BarcodeResult.Found -> {
                     val food = result.food
                     val nutrition = calculateNutrition(food, _uiState.value.portionGrams)
+                    val suggestion = aiCoachRepository.getSuggestionForFood(food)
                     _uiState.update { it.copy(
                         selectedFood = food,
                         calculatedNutrition = nutrition,
+                        coachSuggestion = suggestion,
                         mlLabel = "\uD83D\uDCE6 Barcode: $barcode",
                         showConfirmation = true,
                         showBarcode = false,
@@ -468,6 +483,75 @@ class AddMealViewModel @Inject constructor(
                         error = result.message
                     ) }
                 }
+            }
+        }
+    }
+    
+    // ============ OCR LABEL SCANNING ============
+    
+    /**
+     * Show OCR scanner (re-uses camera or gallery picker).
+     */
+    fun showOCRScanner() {
+        _uiState.update { it.copy(
+            showOCRScanner = true,
+            showCamera = false,
+            showGallery = false,
+            showManualSearch = false,
+            showCandidateSelection = false,
+            showConfirmation = false,
+            showBarcode = false
+        ) }
+    }
+    
+    /**
+     * Process an image of a nutrition label via OCR.
+     * Extracts calories, protein, carbs, fat from the label text.
+     */
+    fun processOCRLabel(bitmap: Bitmap) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isProcessingOCR = true, error = null, capturedBitmap = bitmap) }
+            
+            try {
+                val result = ocrScannerService.extractNutrition(bitmap)
+                
+                if (!result.hasAnyData) {
+                    _uiState.update { it.copy(
+                        isProcessingOCR = false,
+                        error = "Could not find nutrition info in this image. Try a clearer photo of the label."
+                    ) }
+                    return@launch
+                }
+                
+                // Create a FoodItem from OCR data
+                val food = com.nutriscan.data.local.entity.FoodItem(
+                    name = "Scanned Label",
+                    kcalPer100g = result.calories ?: 0,
+                    proteinPer100g = result.protein ?: 0f,
+                    carbsPer100g = result.carbs ?: 0f,
+                    fatPer100g = result.fat ?: 0f,
+                    tags = "ocr,scanned"
+                )
+                
+                val nutrition = calculateNutrition(food, _uiState.value.portionGrams)
+                val suggestion = aiCoachRepository.getSuggestionForFood(food)
+                
+                _uiState.update { it.copy(
+                    isProcessingOCR = false,
+                    selectedFood = food,
+                    calculatedNutrition = nutrition,
+                    coachSuggestion = suggestion,
+                    mlLabel = "📋 Scanned Label" + (result.servingSize?.let { " ($it)" } ?: ""),
+                    showConfirmation = true,
+                    showOCRScanner = false
+                ) }
+                
+            } catch (e: Exception) {
+                Log.e(TAG, "OCR processing failed", e)
+                _uiState.update { it.copy(
+                    isProcessingOCR = false,
+                    error = "Label scan failed: ${e.localizedMessage}"
+                ) }
             }
         }
     }
@@ -502,6 +586,11 @@ data class AddMealUiState(
     val showGallery: Boolean = false,
     val showBarcode: Boolean = false,
     val isScanningBarcode: Boolean = false,
+    val showOCRScanner: Boolean = false,
+    val isProcessingOCR: Boolean = false,
+    
+    // Smart Switch Suggestion
+    val coachSuggestion: CoachInsight? = null,
     
     // Other
     val searchHint: String = "",

@@ -101,6 +101,9 @@ dependencies {
     // ML Kit Barcode Scanning (for decoding barcodes from gallery images)
     implementation("com.google.mlkit:barcode-scanning:17.2.0")
 
+    // ML Kit Text Recognition (for OCR nutrition label scanning)
+    implementation("com.google.mlkit:text-recognition:16.0.0")
+
     // Retrofit (for OpenFoodFacts API)
     implementation("com.squareup.retrofit2:retrofit:2.9.0")
     implementation("com.squareup.retrofit2:converter-gson:2.9.0")
