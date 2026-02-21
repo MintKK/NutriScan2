@@ -51,6 +51,7 @@ import java.util.*
 fun AnalyticsScreen(
     onCalorieTargetClick: () -> Unit,
     onBack: () -> Unit,
+    onExportClick: () -> Unit = {},
     viewModel: AnalyticsViewModel = hiltViewModel()
 ) {
     val last7Days by viewModel.last7DaysNet.collectAsState()
@@ -70,6 +71,15 @@ fun AnalyticsScreen(
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack, "Back")
+                    }
+                },
+                actions = {
+                    IconButton(onClick = onExportClick) {
+                        Icon(
+                            imageVector = Icons.Default.AddLocation,
+                            contentDescription = "Export Report",
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(

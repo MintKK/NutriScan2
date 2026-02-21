@@ -18,6 +18,7 @@ import com.nutriscan.ui.auth.SignUpScreen
 import com.nutriscan.ui.caloriesburned.CaloriesBurnedScreen
 import com.nutriscan.ui.calorietarget.CalorieTargetScreen
 import com.nutriscan.ui.dashboard.DashboardScreen
+import com.nutriscan.ui.export.ExportReportScreen
 import com.nutriscan.ui.diary.FoodDiaryScreen
 import com.nutriscan.ui.social.FeedScreen
 import com.nutriscan.ui.social.UserProfileScreen
@@ -41,6 +42,7 @@ sealed class Screen(val route: String) {
     object CaloriesBurned : Screen("calories_burned")
     object ActivityTracker : Screen("activity_tracker")
     object FoodDiary : Screen("food_diary")
+    object WeeklyReport : Screen("weekly_report")
 
     object Feed : Screen("feed")
     object CreatePost : Screen("create_post")
@@ -142,6 +144,13 @@ fun NutriScanNavHost(
         composable(Screen.Analytics.route) {
             AnalyticsScreen(
                 onCalorieTargetClick = { navController.navigate(Screen.CalorieTarget.route) },
+                onBack = { navController.popBackStack() },
+                onExportClick = { navController.navigate(Screen.WeeklyReport.route) }
+            )
+        }
+
+        composable(Screen.WeeklyReport.route) {
+            ExportReportScreen(
                 onBack = { navController.popBackStack() }
             )
         }
