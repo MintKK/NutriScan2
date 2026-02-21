@@ -37,6 +37,7 @@ import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.nutriscan.data.local.dao.DailyCalories
 import com.nutriscan.data.local.dao.DailyMacros
@@ -536,8 +537,8 @@ fun CalorieTrendChart(
                         )
                     )
 
-                    val goalLabel = "Goal"
-                    val goalTextLayout = textMeasurer.measure(goalLabel)
+                    val goalLabel = "Goal: ${String.format("%,d", targetCalorie)} kcal"
+                    val goalTextLayout = textMeasurer.measure(goalLabel, style = TextStyle(fontSize = 10.sp))
 
                     // Calculate centered position
                     val textX = (width - goalTextLayout.size.width) / 2f

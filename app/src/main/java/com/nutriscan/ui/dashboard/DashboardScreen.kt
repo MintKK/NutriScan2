@@ -50,6 +50,13 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.nutriscan.data.local.dao.MacroTotals
 import com.nutriscan.data.local.entity.MealLog
+import com.nutriscan.data.repository.Badge
+import com.nutriscan.NutritionCalculator
+import com.nutriscan.UserProfile
+import com.nutriscan.NutritionTargets
+import com.nutriscan.Goal
+import com.nutriscan.Gender
+import com.nutriscan.ActivityLevel
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
@@ -67,6 +74,16 @@ fun DashboardScreen(
 ) {
     var showWaterDialog by remember { mutableStateOf(false) }
     var customWaterAmount by remember { mutableStateOf("") }
+    var showWaterGoalDialog by remember { mutableStateOf(false) }
+    var waterGoalInput by remember { mutableStateOf("") }
+    var showStepGoalDialog by remember { mutableStateOf(false) }
+    var stepGoalInput by remember { mutableStateOf("") }
+    var showWeightDialog by remember { mutableStateOf(false) }
+    var weightInput by remember { mutableStateOf("") }
+    var showHeightDialog by remember { mutableStateOf(false) }
+    var heightInput by remember { mutableStateOf("") }
+    var showAgeDialog by remember { mutableStateOf(false) }
+    var ageInput by remember { mutableStateOf("") }
 //    val todayCalories by viewModel.todayCalories.collectAsState()
     val netCalories by viewModel.netCalories.collectAsState()
     val calorieGoal by viewModel.calorieGoal.collectAsState()
@@ -80,6 +97,7 @@ fun DashboardScreen(
     val stepGoal by viewModel.stepGoal.collectAsState()
     val achievementState by viewModel.achievementState.collectAsState()
     val coachInsights by viewModel.coachInsights.collectAsState()
+    val newlyEarnedBadge by viewModel.newlyEarnedBadge.collectAsState()
     
     // Refresh coach insights when data changes
     LaunchedEffect(netCalories, todayWaterMl, todayMacros) {
@@ -112,7 +130,52 @@ fun DashboardScreen(
                         onRetakeQuestionnaire()
                     },
                     modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
-                )}
+                )
+                
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                Text(
+                    "Quick Edit",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(horizontal = 28.dp, vertical = 4.dp)
+                )
+                
+                NavigationDrawerItem(
+                    icon = { Text("⚖️") },
+                    label = { Text("Update Weight") },
+                    selected = false,
+                    onClick = {
+                        scope.launch { drawerState.close() }
+                        weightInput = ""
+                        showWeightDialog = true
+                    },
+                    modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                )
+                
+                NavigationDrawerItem(
+                    icon = { Text("📏") },
+                    label = { Text("Update Height") },
+                    selected = false,
+                    onClick = {
+                        scope.launch { drawerState.close() }
+                        heightInput = ""
+                        showHeightDialog = true
+                    },
+                    modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                )
+                
+                NavigationDrawerItem(
+                    icon = { Text("🎂") },
+                    label = { Text("Update Age") },
+                    selected = false,
+                    onClick = {
+                        scope.launch { drawerState.close() }
+                        ageInput = ""
+                        showAgeDialog = true
+                    },
+                    modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                )
+            }
         }
     ) {
 
@@ -181,9 +244,9 @@ fun DashboardScreen(
                             goal = stepGoal,
                             isTracking = isStepTrackingActive,
                             onClick = onCaloriesBurnedClick,
-                            onLongClick = { 
-                                // Simple goal editing via long press or we can add a setting
-                                viewModel.setStepGoal(if (stepGoal == 10000) 5000 else 10000) 
+                            onLongClick = {
+                                stepGoalInput = stepGoal.toString()
+                                showStepGoalDialog = true
                             }
                         )
                     }
@@ -201,7 +264,11 @@ fun DashboardScreen(
                             onAdd250 = { viewModel.addWater(250) },
                             onAdd500 = { viewModel.addWater(500) },
                             onAddCustom = { showWaterDialog = true },
-                            onUndo = { viewModel.undoWater() }
+                            onUndo = { viewModel.undoWater() },
+                            onEditGoal = {
+                                waterGoalInput = waterGoalMl.toString()
+                                showWaterGoalDialog = true
+                            }
                         )
                     }
 
@@ -281,6 +348,259 @@ fun DashboardScreen(
                         },
                         dismissButton = {
                             TextButton(onClick = { showWaterDialog = false }) {
+                                Text("Cancel")
+                            }
+                        }
+                    )
+                }
+
+                // Water Goal Editing Dialog
+                if (showWaterGoalDialog) {
+                    AlertDialog(
+                        onDismissRequest = { showWaterGoalDialog = false },
+                        title = { Text("Set Water Goal") },
+                        text = {
+                            Column {
+                                Text("Enter your daily water intake goal:")
+                                Spacer(modifier = Modifier.height(8.dp))
+                                OutlinedTextField(
+                                    value = waterGoalInput,
+                                    onValueChange = { waterGoalInput = it },
+                                    label = { Text("Goal (ml)") },
+                                    keyboardOptions = KeyboardOptions(
+                                        keyboardType = KeyboardType.Number,
+                                        imeAction = ImeAction.Done
+                                    ),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    listOf(1500, 2000, 2500, 3000).forEach { preset ->
+                                        FilterChip(
+                                            selected = waterGoalInput == preset.toString(),
+                                            onClick = { waterGoalInput = preset.toString() },
+                                            label = { Text("${preset / 1000f}L") },
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                    }
+                                }
+                            }
+                        },
+                        confirmButton = {
+                            Button(
+                                onClick = {
+                                    waterGoalInput.toIntOrNull()?.let {
+                                        if (it in 500..5000) {
+                                            viewModel.setWaterGoal(it)
+                                            showWaterGoalDialog = false
+                                        }
+                                    }
+                                }
+                            ) { Text("Save") }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showWaterGoalDialog = false }) {
+                                Text("Cancel")
+                            }
+                        }
+                    )
+                }
+
+                // Step Goal Editing Dialog
+                if (showStepGoalDialog) {
+                    AlertDialog(
+                        onDismissRequest = { showStepGoalDialog = false },
+                        title = { Text("Set Step Goal") },
+                        text = {
+                            Column {
+                                Text("Enter your daily step goal:")
+                                Spacer(modifier = Modifier.height(8.dp))
+                                OutlinedTextField(
+                                    value = stepGoalInput,
+                                    onValueChange = { stepGoalInput = it },
+                                    label = { Text("Steps") },
+                                    keyboardOptions = KeyboardOptions(
+                                        keyboardType = KeyboardType.Number,
+                                        imeAction = ImeAction.Done
+                                    ),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    listOf(5000, 8000, 10000, 15000).forEach { preset ->
+                                        FilterChip(
+                                            selected = stepGoalInput == preset.toString(),
+                                            onClick = { stepGoalInput = preset.toString() },
+                                            label = { Text("${preset / 1000}k") },
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                    }
+                                }
+                            }
+                        },
+                        confirmButton = {
+                            Button(
+                                onClick = {
+                                    stepGoalInput.toIntOrNull()?.let {
+                                        if (it in 1000..50000) {
+                                            viewModel.setStepGoal(it)
+                                            showStepGoalDialog = false
+                                        }
+                                    }
+                                }
+                            ) { Text("Save") }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showStepGoalDialog = false }) {
+                                Text("Cancel")
+                            }
+                        }
+                    )
+                }
+                
+                // Badge Celebration Dialog
+                if (newlyEarnedBadge != null) {
+                    AlertDialog(
+                        onDismissRequest = { viewModel.dismissBadgeCelebration() },
+                        title = {
+                            Text("🏆 Badge Earned!", fontWeight = FontWeight.Bold)
+                        },
+                        text = {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    newlyEarnedBadge!!.emoji,
+                                    fontSize = 48.sp
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    newlyEarnedBadge!!.title,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    newlyEarnedBadge!!.description,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        },
+                        confirmButton = {
+                            Button(onClick = { viewModel.dismissBadgeCelebration() }) {
+                                Text("Awesome!")
+                            }
+                        }
+                    )
+                }
+                
+                // Weight Edit Dialog
+                if (showWeightDialog) {
+                    AlertDialog(
+                        onDismissRequest = { showWeightDialog = false },
+                        title = { Text("Update Weight") },
+                        text = {
+                            OutlinedTextField(
+                                value = weightInput,
+                                onValueChange = { weightInput = it },
+                                label = { Text("Weight (kg)") },
+                                keyboardOptions = KeyboardOptions(
+                                    keyboardType = KeyboardType.Number,
+                                    imeAction = ImeAction.Done
+                                ),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        },
+                        confirmButton = {
+                            Button(onClick = {
+                                weightInput.toIntOrNull()?.let {
+                                    if (it in 20..300) {
+                                        viewModel.updateWeight(it)
+                                        showWeightDialog = false
+                                    }
+                                }
+                            }) { Text("Save") }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showWeightDialog = false }) {
+                                Text("Cancel")
+                            }
+                        }
+                    )
+                }
+                
+                // Height Edit Dialog
+                if (showHeightDialog) {
+                    AlertDialog(
+                        onDismissRequest = { showHeightDialog = false },
+                        title = { Text("Update Height") },
+                        text = {
+                            OutlinedTextField(
+                                value = heightInput,
+                                onValueChange = { heightInput = it },
+                                label = { Text("Height (cm)") },
+                                keyboardOptions = KeyboardOptions(
+                                    keyboardType = KeyboardType.Number,
+                                    imeAction = ImeAction.Done
+                                ),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        },
+                        confirmButton = {
+                            Button(onClick = {
+                                heightInput.toIntOrNull()?.let {
+                                    if (it in 50..250) {
+                                        viewModel.updateHeight(it)
+                                        showHeightDialog = false
+                                    }
+                                }
+                            }) { Text("Save") }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showHeightDialog = false }) {
+                                Text("Cancel")
+                            }
+                        }
+                    )
+                }
+                
+                // Age Edit Dialog
+                if (showAgeDialog) {
+                    AlertDialog(
+                        onDismissRequest = { showAgeDialog = false },
+                        title = { Text("Update Age") },
+                        text = {
+                            OutlinedTextField(
+                                value = ageInput,
+                                onValueChange = { ageInput = it },
+                                label = { Text("Age (years)") },
+                                keyboardOptions = KeyboardOptions(
+                                    keyboardType = KeyboardType.Number,
+                                    imeAction = ImeAction.Done
+                                ),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        },
+                        confirmButton = {
+                            Button(onClick = {
+                                ageInput.toIntOrNull()?.let {
+                                    if (it in 1..150) {
+                                        viewModel.updateAge(it)
+                                        showAgeDialog = false
+                                    }
+                                }
+                            }) { Text("Save") }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showAgeDialog = false }) {
                                 Text("Cancel")
                             }
                         }
@@ -652,7 +972,8 @@ fun WaterTrackerCard(
     onAdd250: () -> Unit,
     onAdd500: () -> Unit,
     onAddCustom: () -> Unit,
-    onUndo: () -> Unit
+    onUndo: () -> Unit,
+    onEditGoal: () -> Unit = {}
 ) {
     val fraction = if (goalMl > 0) (currentMl.toFloat() / goalMl).coerceIn(0f, 1f) else 0f
     val percentage = (fraction * 100).toInt()
@@ -700,9 +1021,14 @@ fun WaterTrackerCard(
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
-                if (currentMl > 0) {
-                    TextButton(onClick = onUndo) {
-                        Text("Undo", color = MaterialTheme.colorScheme.error)
+                Row {
+                    TextButton(onClick = onEditGoal) {
+                        Text("Set Goal", color = WaterBlue, style = MaterialTheme.typography.labelMedium)
+                    }
+                    if (currentMl > 0) {
+                        TextButton(onClick = onUndo) {
+                            Text("Undo", color = MaterialTheme.colorScheme.error)
+                        }
                     }
                 }
             }
