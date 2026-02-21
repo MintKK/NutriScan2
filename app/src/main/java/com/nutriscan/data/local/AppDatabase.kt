@@ -15,7 +15,7 @@ import com.nutriscan.data.local.entity.StepLog
 
 @Database(
     entities = [FoodItem::class, MealLog::class, StepLog::class, ActivityLog::class],
-    version = 5,
+    version = 6,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

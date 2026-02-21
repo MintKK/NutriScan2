@@ -44,6 +44,9 @@ interface MealLogDao {
     @Query("DELETE FROM meal_logs WHERE id = :id")
     suspend fun deleteById(id: Int)
     
+    @Query("SELECT * FROM meal_logs WHERE id = :id")
+    suspend fun getById(id: Int): MealLog?
+    
     @Query("SELECT * FROM meal_logs WHERE timestamp >= :startOfDay ORDER BY timestamp DESC")
     fun getTodayLogs(startOfDay: Long): Flow<List<MealLog>>
     

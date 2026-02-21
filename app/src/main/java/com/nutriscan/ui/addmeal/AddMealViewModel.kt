@@ -1,10 +1,13 @@
 package com.nutriscan.ui.addmeal
 
+import android.content.Context
 import android.graphics.Bitmap
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.nutriscan.data.local.entity.FoodItem
+import com.nutriscan.util.MealImageStorage
+import dagger.hilt.android.qualifiers.ApplicationContext
 import com.nutriscan.data.repository.FoodRepository
 import com.nutriscan.data.repository.MealRepository
 import com.nutriscan.domain.model.NutritionResult
@@ -35,6 +38,7 @@ import javax.inject.Inject
  */
 @HiltViewModel
 class AddMealViewModel @Inject constructor(
+    @ApplicationContext private val appContext: Context,
     private val foodClassifier: FoodClassificationService,  // Interface, not concrete
     private val foodMatchingService: FoodMatchingService,
     private val foodRepository: FoodRepository,
@@ -65,7 +69,7 @@ class AddMealViewModel @Inject constructor(
      */
     fun classifyImage(bitmap: Bitmap) {
         viewModelScope.launch {
-            _uiState.update { it.copy(isClassifying = true, error = null) }
+            _uiState.update { it.copy(isClassifying = true, error = null, capturedBitmap = bitmap) }
             
             try {
                 // Step 1: Run FOOD-SPECIFIC classification (filters non-food labels)
@@ -303,6 +307,7 @@ class AddMealViewModel @Inject constructor(
     
     /**
      * Confirm and log the meal.
+     * If a photo was captured, saves it to internal storage first.
      */
     fun confirmMeal() {
         val food = _uiState.value.selectedFood ?: return
@@ -316,8 +321,13 @@ class AddMealViewModel @Inject constructor(
             _uiState.update { it.copy(isLogging = true) }
             
             try {
-                mealRepository.logMeal(food, grams, source)
-                _uiState.update { it.copy(isLogging = false, mealLogged = true) }
+                // Save captured photo to internal storage (if available)
+                val imagePath = _uiState.value.capturedBitmap?.let { bitmap ->
+                    MealImageStorage.saveMealImage(appContext, bitmap)
+                }
+                
+                mealRepository.logMeal(food, grams, source, imagePath)
+                _uiState.update { it.copy(isLogging = false, mealLogged = true, capturedBitmap = null) }
             } catch (e: Exception) {
                 _uiState.update { it.copy(
                     isLogging = false,
@@ -417,6 +427,9 @@ data class AddMealUiState(
     val selectedFood: FoodItem? = null,
     val portionGrams: Int = 250,
     val calculatedNutrition: NutritionResult = NutritionResult.ZERO,
+    
+    // Captured photo for food diary
+    val capturedBitmap: Bitmap? = null,
     
     // Screen states (mutually exclusive)
     val showConfirmation: Boolean = false,

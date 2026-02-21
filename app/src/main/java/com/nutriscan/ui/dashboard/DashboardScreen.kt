@@ -3,6 +3,7 @@ package com.nutriscan.ui.dashboard
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -19,9 +20,12 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -38,6 +42,7 @@ fun DashboardScreen(
     onAnalyticsClick: () -> Unit,
     onCaloriesBurnedClick: () -> Unit = {},
     onFeedClick: () -> Unit,
+    onFoodDiaryClick: () -> Unit = {},
     viewModel: DashboardViewModel = hiltViewModel()
 ) {
 //    val todayCalories by viewModel.todayCalories.collectAsState()
@@ -102,11 +107,20 @@ fun DashboardScreen(
 
                 // Today's Meals Header
                 item {
-                    Text(
-                        "Today's Meals",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "Today's Meals",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        TextButton(onClick = onFoodDiaryClick) {
+                            Text("Food Diary →")
+                        }
+                    }
                 }
 
                 // Meal List
@@ -329,6 +343,15 @@ fun MealLogItem(
 ) {
     val timeFormat = remember { SimpleDateFormat("h:mm a", Locale.getDefault()) }
     
+    // Load meal image if available
+    val mealBitmap = remember(meal.imagePath) {
+        meal.imagePath?.let { path ->
+            try {
+                android.graphics.BitmapFactory.decodeFile(path)
+            } catch (e: Exception) { null }
+        }
+    }
+    
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp)
@@ -336,10 +359,35 @@ fun MealLogItem(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
+                .padding(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            // Photo thumbnail or food icon placeholder
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                contentAlignment = Alignment.Center
+            ) {
+                if (mealBitmap != null) {
+                    Image(
+                        bitmap = mealBitmap.asImageBitmap(),
+                        contentDescription = meal.foodName,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    Icon(
+                        Icons.Default.Restaurant,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            }
+            
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = meal.foodName.replaceFirstChar { it.uppercase() },

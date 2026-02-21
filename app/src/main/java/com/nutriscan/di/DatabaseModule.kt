@@ -46,7 +46,16 @@ object DatabaseModule {
             .addCallback(object : RoomDatabase.Callback() {
                 override fun onCreate(db: SupportSQLiteDatabase) {
                     super.onCreate(db)
-                    // Seed database on creation
+                    // Seed database on first creation
+                    val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+                    scope.launch {
+                        seedDatabase(context, foodItemDaoProvider.get())
+                    }
+                }
+                
+                override fun onDestructiveMigration(db: SupportSQLiteDatabase) {
+                    super.onDestructiveMigration(db)
+                    // Re-seed after destructive migration (DB version bump)
                     val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
                     scope.launch {
                         seedDatabase(context, foodItemDaoProvider.get())

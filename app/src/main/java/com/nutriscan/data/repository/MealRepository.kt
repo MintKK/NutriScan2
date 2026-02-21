@@ -12,6 +12,7 @@ import com.nutriscan.data.local.dao.MacroTotals
 import com.nutriscan.data.local.dao.MealLogDao
 import com.nutriscan.data.local.entity.FoodItem
 import com.nutriscan.data.local.entity.MealLog
+import com.nutriscan.util.MealImageStorage
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import java.util.Calendar
@@ -38,7 +39,8 @@ class MealRepository @Inject constructor(
     suspend fun logMeal(
         foodItem: FoodItem,
         grams: Int,
-        source: String = "ml"
+        source: String = "ml",
+        imagePath: String? = null
     ): Long {
         val factor = grams / 100f
         val log = MealLog(
@@ -49,7 +51,8 @@ class MealRepository @Inject constructor(
             proteinTotal = foodItem.proteinPer100g * factor,
             carbsTotal = foodItem.carbsPer100g * factor,
             fatTotal = foodItem.fatPer100g * factor,
-            source = source
+            source = source,
+            imagePath = imagePath
         )
         return mealLogDao.insert(log)
     }
@@ -59,6 +62,15 @@ class MealRepository @Inject constructor(
     fun getRecentLogs(limit: Int = 50): Flow<List<MealLog>> = mealLogDao.getRecentLogs(limit)
 
     suspend fun deleteLog(id: Int) = mealLogDao.deleteById(id)
+    
+    /**
+     * Delete a meal and its associated image file (if any).
+     */
+    suspend fun deleteLogWithImage(id: Int) {
+        val meal = mealLogDao.getById(id)
+        meal?.imagePath?.let { MealImageStorage.deleteMealImage(it) }
+        mealLogDao.deleteById(id)
+    }
 
     // ============ ANALYTICS ============
 

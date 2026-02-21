@@ -12,6 +12,7 @@ import com.nutriscan.ui.auth.SignUpScreen
 import com.nutriscan.ui.caloriesburned.CaloriesBurnedScreen
 import com.nutriscan.ui.calorietarget.CalorieTargetScreen
 import com.nutriscan.ui.dashboard.DashboardScreen
+import com.nutriscan.ui.diary.FoodDiaryScreen
 import com.nutriscan.ui.social.FeedScreen
 import com.nutriscan.ui.social.UserProfileScreen
 import com.nutriscan.ui.social.CreatePostScreen
@@ -27,6 +28,7 @@ sealed class Screen(val route: String) {
     object CalorieTarget : Screen("calorie_target")
     object CaloriesBurned : Screen("calories_burned")
     object ActivityTracker : Screen("activity_tracker")
+    object FoodDiary : Screen("food_diary")
 
     object Feed : Screen("feed")
     object CreatePost : Screen("create_post")
@@ -55,7 +57,8 @@ fun NutriScanNavHost(
                 onAddMealClick = { navController.navigate(Screen.AddMeal.route) },
                 onAnalyticsClick = { navController.navigate(Screen.Analytics.route) },
                 onCaloriesBurnedClick = { navController.navigate(Screen.CaloriesBurned.route) },
-                onFeedClick = { navController.navigate(Screen.Feed.route) }
+                onFeedClick = { navController.navigate(Screen.Feed.route) },
+                onFoodDiaryClick = { navController.navigate(Screen.FoodDiary.route) }
             )
         }
         
@@ -88,6 +91,12 @@ fun NutriScanNavHost(
         
         composable(Screen.ActivityTracker.route) {
             ActivityTrackerScreen(
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Screen.FoodDiary.route) {
+            FoodDiaryScreen(
                 onBack = { navController.popBackStack() }
             )
         }

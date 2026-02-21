@@ -85,7 +85,7 @@ class DashboardViewModel @Inject constructor(
     
     fun deleteMeal(id: Int) {
         viewModelScope.launch {
-            mealRepository.deleteLog(id)
+            mealRepository.deleteLogWithImage(id)
         }
     }
 
