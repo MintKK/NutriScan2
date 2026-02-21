@@ -95,6 +95,16 @@ dependencies {
     // Google Play Services — Activity Recognition API
     implementation("com.google.android.gms:play-services-location:21.0.1")
 
+    // Google Code Scanner (barcode scanning via Play Services)
+    implementation("com.google.android.gms:play-services-code-scanner:16.1.0")
+
+    // ML Kit Barcode Scanning (for decoding barcodes from gallery images)
+    implementation("com.google.mlkit:barcode-scanning:17.2.0")
+
+    // Retrofit (for OpenFoodFacts API)
+    implementation("com.squareup.retrofit2:retrofit:2.9.0")
+    implementation("com.squareup.retrofit2:converter-gson:2.9.0")
+
     // Testing
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

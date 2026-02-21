@@ -6,6 +6,8 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.nutriscan.data.local.entity.FoodItem
+import com.nutriscan.barcode.BarcodeResult
+import com.nutriscan.barcode.BarcodeService
 import com.nutriscan.util.MealImageStorage
 import dagger.hilt.android.qualifiers.ApplicationContext
 import com.nutriscan.data.repository.FoodRepository
@@ -43,7 +45,8 @@ class AddMealViewModel @Inject constructor(
     private val foodMatchingService: FoodMatchingService,
     private val foodRepository: FoodRepository,
     private val mealRepository: MealRepository,
-    private val calculateNutrition: CalculateNutritionUseCase
+    private val calculateNutrition: CalculateNutritionUseCase,
+    private val barcodeService: BarcodeService
 ) : ViewModel() {
     
     companion object {
@@ -353,7 +356,8 @@ class AddMealViewModel @Inject constructor(
             showCandidateSelection = false,
             showConfirmation = false,
             showCamera = false,
-            showGallery = false
+            showGallery = false,
+            showBarcode = false
         ) }
     }
     
@@ -366,7 +370,8 @@ class AddMealViewModel @Inject constructor(
             showGallery = false,
             showManualSearch = false,
             showCandidateSelection = false,
-            showConfirmation = false
+            showConfirmation = false,
+            showBarcode = false
         ) }
     }
     
@@ -379,7 +384,8 @@ class AddMealViewModel @Inject constructor(
             showCamera = false,
             showManualSearch = false,
             showCandidateSelection = false,
-            showConfirmation = false
+            showConfirmation = false,
+            showBarcode = false
         ) }
     }
     
@@ -408,6 +414,63 @@ class AddMealViewModel @Inject constructor(
      * Search for foods manually.
      */
     fun searchFoods(query: String) = foodRepository.searchFoods(query)
+    
+    // ============ BARCODE SCANNING ============
+    
+    /**
+     * Show barcode scanner.
+     */
+    fun showBarcodeScanner() {
+        _uiState.update { it.copy(
+            showBarcode = true,
+            showCamera = false,
+            showGallery = false,
+            showManualSearch = false,
+            showCandidateSelection = false,
+            showConfirmation = false
+        ) }
+    }
+    
+    /**
+     * Handle a scanned barcode — look up via OpenFoodFacts.
+     */
+    fun handleBarcodeResult(barcode: String) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isScanningBarcode = true, error = null) }
+            
+            when (val result = barcodeService.lookupBarcode(barcode)) {
+                is BarcodeResult.Found -> {
+                    val food = result.food
+                    val nutrition = calculateNutrition(food, _uiState.value.portionGrams)
+                    _uiState.update { it.copy(
+                        selectedFood = food,
+                        calculatedNutrition = nutrition,
+                        mlLabel = "\uD83D\uDCE6 Barcode: $barcode",
+                        showConfirmation = true,
+                        showBarcode = false,
+                        isScanningBarcode = false
+                    ) }
+                }
+                is BarcodeResult.NotFound -> {
+                    // Product not in OpenFoodFacts — let user search by name
+                    _uiState.update { it.copy(
+                        showManualSearch = true,
+                        showBarcode = false,
+                        isScanningBarcode = false,
+                        searchHint = "",
+                        error = "Barcode $barcode not found in OpenFoodFacts. Search by product name instead."
+                    ) }
+                }
+                is BarcodeResult.Error -> {
+                    // Network/API error — stay on barcode screen so user sees the error
+                    _uiState.update { it.copy(
+                        isScanningBarcode = false,
+                        error = result.message
+                    ) }
+                }
+            }
+        }
+    }
 }
 
 /**
@@ -437,6 +500,8 @@ data class AddMealUiState(
     val showManualSearch: Boolean = false,
     val showCamera: Boolean = false,
     val showGallery: Boolean = false,
+    val showBarcode: Boolean = false,
+    val isScanningBarcode: Boolean = false,
     
     // Other
     val searchHint: String = "",

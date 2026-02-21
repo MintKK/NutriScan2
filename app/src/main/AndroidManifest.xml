@@ -8,6 +8,9 @@
         android:required="false" />
     <uses-permission android:name="android.permission.CAMERA" />
 
+    <!-- Internet for OpenFoodFacts barcode lookup -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <!-- Step counter sensor (optional — app falls back to accelerometer) -->
     <uses-feature
         android:name="android.hardware.sensor.stepcounter"

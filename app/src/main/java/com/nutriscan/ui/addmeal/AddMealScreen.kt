@@ -52,6 +52,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.nutriscan.data.local.entity.FoodItem
 import com.nutriscan.domain.model.PortionPreset
 import com.nutriscan.ml.FoodMatchResult
+import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 import java.util.concurrent.Executors
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -134,6 +135,14 @@ fun AddMealScreen(
                         onDismiss = { viewModel.resetState() }
                     )
                 }
+                uiState.showBarcode -> {
+                    BarcodeScannerLauncher(
+                        isLoading = uiState.isScanningBarcode,
+                        error = uiState.error,
+                        onBarcodeScanned = { barcode -> viewModel.handleBarcodeResult(barcode) },
+                        onCancel = { viewModel.resetState() }
+                    )
+                }
                 else -> {
                     // Landing screen: choose input method
                     UnifiedFoodCapture(
@@ -142,7 +151,8 @@ fun AddMealScreen(
                         onImageCaptured = { bitmap -> viewModel.classifyImage(bitmap) },
                         onManualSearch = { viewModel.showManualSearch() },
                         onShowCamera = { viewModel.showCamera() },
-                        onShowGallery = { viewModel.showGallery() }
+                        onShowGallery = { viewModel.showGallery() },
+                        onShowBarcode = { viewModel.showBarcodeScanner() }
                     )
                 }
             }
@@ -676,7 +686,8 @@ fun UnifiedFoodCapture(
     onImageCaptured: (Bitmap) -> Unit,
     onManualSearch: () -> Unit,
     onShowCamera: () -> Unit,
-    onShowGallery: () -> Unit
+    onShowGallery: () -> Unit,
+    onShowBarcode: () -> Unit
 ) {
     val context = LocalContext.current
     
@@ -854,6 +865,37 @@ fun UnifiedFoodCapture(
                     )
                     Text(
                         "Search",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Medium,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+            
+            // Scan Barcode option
+            Card(
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable(enabled = !isClassifying) { onShowBarcode() },
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.tertiaryContainer
+                )
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        Icons.Default.QrCodeScanner,
+                        contentDescription = "Scan Barcode",
+                        modifier = Modifier.size(32.dp),
+                        tint = MaterialTheme.colorScheme.onTertiaryContainer
+                    )
+                    Text(
+                        "Barcode",
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Medium,
                         textAlign = TextAlign.Center
@@ -1117,3 +1159,201 @@ fun CandidateSelectionSheet(
     }
 }
 
+/**
+ * Launches the Google Code Scanner and handles the result.
+ * Also supports scanning barcodes from gallery images via ML Kit.
+ */
+@Composable
+fun BarcodeScannerLauncher(
+    isLoading: Boolean,
+    error: String?,
+    onBarcodeScanned: (String) -> Unit,
+    onCancel: () -> Unit
+) {
+    val context = LocalContext.current
+    var scannerLaunched by remember { mutableStateOf(false) }
+    var showOptions by remember { mutableStateOf(false) }
+    var galleryError by remember { mutableStateOf<String?>(null) }
+    var isDecodingImage by remember { mutableStateOf(false) }
+
+    // Gallery picker for barcode images
+    val galleryLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            isDecodingImage = true
+            galleryError = null
+            try {
+                val inputImage = com.google.mlkit.vision.common.InputImage
+                    .fromFilePath(context, uri)
+                val scanner = com.google.mlkit.vision.barcode.BarcodeScanning.getClient()
+                scanner.process(inputImage)
+                    .addOnSuccessListener { barcodes ->
+                        isDecodingImage = false
+                        val barcode = barcodes.firstOrNull()?.rawValue
+                        if (barcode != null) {
+                            onBarcodeScanned(barcode)
+                        } else {
+                            galleryError = "No barcode found in this image. Try a clearer photo."
+                        }
+                    }
+                    .addOnFailureListener { e ->
+                        isDecodingImage = false
+                        galleryError = "Failed to scan image: ${e.localizedMessage}"
+                    }
+            } catch (e: Exception) {
+                isDecodingImage = false
+                galleryError = "Could not load image: ${e.localizedMessage}"
+            }
+        }
+    }
+
+    // Launch live scanner automatically on first composition
+    LaunchedEffect(Unit) {
+        if (!scannerLaunched) {
+            scannerLaunched = true
+            val scanner = GmsBarcodeScanning.getClient(context)
+            scanner.startScan()
+                .addOnSuccessListener { barcode ->
+                    barcode.rawValue?.let { onBarcodeScanned(it) }
+                        ?: run { showOptions = true }
+                }
+                .addOnCanceledListener {
+                    showOptions = true
+                }
+                .addOnFailureListener {
+                    showOptions = true
+                }
+        }
+    }
+
+    // UI: Loading / Error / Options
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            modifier = Modifier.padding(32.dp)
+        ) {
+            when {
+                isLoading -> {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(48.dp),
+                        color = MaterialTheme.colorScheme.tertiary
+                    )
+                    Text(
+                        "Looking up product...",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        "Searching OpenFoodFacts database",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                isDecodingImage -> {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(48.dp),
+                        color = MaterialTheme.colorScheme.tertiary
+                    )
+                    Text(
+                        "Scanning image for barcode...",
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                }
+                error != null -> {
+                    Icon(
+                        Icons.Default.Warning,
+                        contentDescription = null,
+                        modifier = Modifier.size(48.dp),
+                        tint = MaterialTheme.colorScheme.error
+                    )
+                    Text(
+                        error,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.error,
+                        textAlign = TextAlign.Center
+                    )
+                    OutlinedButton(onClick = onCancel) {
+                        Text("Go Back")
+                    }
+                }
+                showOptions -> {
+                    // User cancelled live scanner or it failed — show retry options
+                    Icon(
+                        Icons.Default.QrCodeScanner,
+                        contentDescription = null,
+                        modifier = Modifier.size(64.dp),
+                        tint = MaterialTheme.colorScheme.tertiary
+                    )
+
+                    Text(
+                        "Scan a Barcode",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    if (galleryError != null) {
+                        Text(
+                            galleryError!!,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+
+                    Spacer(Modifier.height(8.dp))
+
+                    // Live scanner button
+                    Button(
+                        onClick = {
+                            val scanner = GmsBarcodeScanning.getClient(context)
+                            scanner.startScan()
+                                .addOnSuccessListener { barcode ->
+                                    barcode.rawValue?.let { onBarcodeScanned(it) }
+                                }
+                                .addOnCanceledListener { /* stay on options */ }
+                                .addOnFailureListener { /* stay on options */ }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.CameraAlt, null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Scan with Camera")
+                    }
+
+                    // Gallery scanner button
+                    OutlinedButton(
+                        onClick = { galleryLauncher.launch("image/*") },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.PhotoLibrary, null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Scan from Photo")
+                    }
+
+                    // Cancel button
+                    TextButton(onClick = onCancel) {
+                        Text("Cancel")
+                    }
+                }
+                else -> {
+                    // Initial state while live scanner is launching
+                    Icon(
+                        Icons.Default.QrCodeScanner,
+                        contentDescription = null,
+                        modifier = Modifier.size(64.dp),
+                        tint = MaterialTheme.colorScheme.tertiary
+                    )
+                    Text(
+                        "Opening barcode scanner...",
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                }
+            }
+        }
+    }
+}
