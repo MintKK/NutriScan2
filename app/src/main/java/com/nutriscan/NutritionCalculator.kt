@@ -2,6 +2,10 @@ package com.nutriscan
 
 object NutritionCalculator {
     fun calculateTargets(profile: UserProfile): NutritionTargets {
+        require(profile.weightKg > 0) { "Weight must be positive" }
+        require(profile.heightCm > 0) { "Height must be positive" }
+        require(profile.age in 1..150) { "Age must be between 1 and 150" }
+
         val bmr = if (profile.gender == Gender.MALE) {
             (10 * profile.weightKg) + (6.25 * profile.heightCm) - (5 * profile.age) + 5
         } else {

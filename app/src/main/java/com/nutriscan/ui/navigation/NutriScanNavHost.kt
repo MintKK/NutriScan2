@@ -32,7 +32,9 @@ sealed class Screen(val route: String) {
     object QuestionnaireResults : Screen("questionnaire_results")
 
     object Dashboard : Screen("dashboard")
-    object AddMeal : Screen("add_meal")
+    object AddMeal : Screen("add_meal?query={query}") {
+        fun passQuery(query: String?): String = "add_meal?query=$query"
+    }
     object Analytics : Screen("analytics")
 
     object CalorieTarget : Screen("calorie_target")
@@ -108,7 +110,9 @@ fun NutriScanNavHost(
 
         composable(Screen.Dashboard.route) {
             DashboardScreen(
-                onAddMealClick = { navController.navigate(Screen.AddMeal.route) },
+                onAddMealClick = { query -> 
+                    navController.navigate(Screen.AddMeal.passQuery(query)) 
+                },
                 onAnalyticsClick = { navController.navigate(Screen.Analytics.route) },
                 onCaloriesBurnedClick = { navController.navigate(Screen.CaloriesBurned.route) },
                 onFeedClick = { navController.navigate(Screen.Feed.route) },
@@ -117,8 +121,19 @@ fun NutriScanNavHost(
             )
         }
         
-        composable(Screen.AddMeal.route) {
+        composable(
+            route = Screen.AddMeal.route,
+            arguments = listOf(
+                androidx.navigation.navArgument("query") { 
+                    type = androidx.navigation.NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                }
+            )
+        ) { backStackEntry ->
+            val query = backStackEntry.arguments?.getString("query")
             AddMealScreen(
+                initialSearchQuery = query,
                 onMealLogged = { navController.popBackStack() },
                 onBack = { navController.popBackStack() }
             )

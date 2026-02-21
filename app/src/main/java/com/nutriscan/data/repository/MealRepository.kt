@@ -123,6 +123,9 @@ class MealRepository @Inject constructor(
 
     private object Keys {
         val TARGET_CALORIES = intPreferencesKey("target_calories")
+        val TARGET_PROTEIN = floatPreferencesKey("target_protein_g")
+        val TARGET_CARBS = floatPreferencesKey("target_carbs_g")
+        val TARGET_FAT = floatPreferencesKey("target_fat_g")
 
         val USER_IS_FEMALE = booleanPreferencesKey("user_isFemale")
         val USER_WEIGHT = intPreferencesKey("user_weight")
@@ -140,6 +143,26 @@ class MealRepository @Inject constructor(
     suspend fun saveTargetCalories(targetCal: Int) {
         dataStore.edit { prefs ->
             prefs[Keys.TARGET_CALORIES] = targetCal
+        }
+    }
+
+    fun getTargetProtein(): Flow<Float> = dataStore.data
+        .catch { emit(emptyPreferences()) }
+        .map { it[Keys.TARGET_PROTEIN] ?: 0f }
+
+    fun getTargetCarbs(): Flow<Float> = dataStore.data
+        .catch { emit(emptyPreferences()) }
+        .map { it[Keys.TARGET_CARBS] ?: 0f }
+
+    fun getTargetFat(): Flow<Float> = dataStore.data
+        .catch { emit(emptyPreferences()) }
+        .map { it[Keys.TARGET_FAT] ?: 0f }
+
+    suspend fun saveTargetMacros(proteinG: Int, carbsG: Int, fatG: Int) {
+        dataStore.edit { prefs ->
+            prefs[Keys.TARGET_PROTEIN] = proteinG.toFloat()
+            prefs[Keys.TARGET_CARBS] = carbsG.toFloat()
+            prefs[Keys.TARGET_FAT] = fatG.toFloat()
         }
     }
 

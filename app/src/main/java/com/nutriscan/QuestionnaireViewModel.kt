@@ -64,6 +64,7 @@ class QuestionnaireViewModel @Inject constructor(
     fun saveTargetsToDataStore(targets: NutritionTargets) {
         viewModelScope.launch {
             mealRepository.saveTargetCalories(targets.calories)
+            mealRepository.saveTargetMacros(targets.proteinGrams, targets.carbGrams, targets.fatGrams)
             mealRepository.saveWeight(weightKg.toFloat().toInt())
             mealRepository.saveHeight(heightCm.toFloat().toInt())
             mealRepository.saveAge(age.toInt())
