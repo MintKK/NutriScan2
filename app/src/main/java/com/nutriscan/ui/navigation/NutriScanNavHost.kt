@@ -1,9 +1,15 @@
 package com.nutriscan.ui.navigation
 
+import android.content.SharedPreferences
 import androidx.compose.runtime.Composable
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import com.nutriscan.NutritionTargets
+import com.nutriscan.NutritionTargetsPrefs
+import com.nutriscan.QuestionnaireResultsScreen
+import com.nutriscan.QuestionnaireScreen
+import com.nutriscan.WelcomeScreen
 import com.nutriscan.ui.activity.ActivityTrackerScreen
 import com.nutriscan.ui.addmeal.AddMealScreen
 import com.nutriscan.ui.analytics.AnalyticsScreen
@@ -21,6 +27,10 @@ import com.nutriscan.ui.social.CreatePostScreen
  * Navigation routes for the app.
  */
 sealed class Screen(val route: String) {
+    object Welcome : Screen("welcome")
+    object Questionnaire : Screen("questionnaire")
+    object QuestionnaireResults : Screen("questionnaire_results")
+
     object Dashboard : Screen("dashboard")
     object AddMeal : Screen("add_meal")
     object Analytics : Screen("analytics")
@@ -46,18 +56,62 @@ sealed class Screen(val route: String) {
 
 @Composable
 fun NutriScanNavHost(
-    navController: NavHostController
+    navController: NavHostController,
+    prefs: SharedPreferences,
+    showQuestionnaire: Boolean = false
 ) {
     NavHost(
         navController = navController,
-        startDestination = Screen.Dashboard.route
+        startDestination = if (showQuestionnaire) Screen.Welcome.route else Screen.Dashboard.route
     ) {
+        composable(Screen.Welcome.route) {
+            WelcomeScreen(
+                onGetStarted = {
+                    navController.navigate(Screen.Questionnaire.route) {
+                        popUpTo(Screen.Welcome.route) { inclusive = true }
+                    }
+                },
+                onSkip = {
+                    prefs.edit().putBoolean("questionnaire_skipped", true).apply()
+                    navController.navigate(Screen.Dashboard.route) {
+                        popUpTo(Screen.Welcome.route) { inclusive = true }
+                    }
+                }
+            )
+        }
+
+        composable(Screen.Questionnaire.route) {
+            QuestionnaireScreen(
+                onFinished = { targets ->
+                    // save targets to SharedPreferences
+                    NutritionTargetsPrefs.save(prefs, targets)
+
+                    navController.navigate(Screen.QuestionnaireResults.route) {
+                        popUpTo(Screen.Questionnaire.route) { inclusive = true }
+                    }
+                }
+            )
+        }
+
+        composable(Screen.QuestionnaireResults.route) {
+            val targets = NutritionTargetsPrefs.load(prefs) ?: NutritionTargets(0, 0, 0, 0)
+            QuestionnaireResultsScreen(
+                targets = targets,
+                onContinue = {
+                    navController.navigate(Screen.Dashboard.route) {
+                        popUpTo(Screen.QuestionnaireResults.route) { inclusive = true }
+                    }
+                }
+            )
+        }
+
         composable(Screen.Dashboard.route) {
             DashboardScreen(
                 onAddMealClick = { navController.navigate(Screen.AddMeal.route) },
                 onAnalyticsClick = { navController.navigate(Screen.Analytics.route) },
                 onCaloriesBurnedClick = { navController.navigate(Screen.CaloriesBurned.route) },
                 onFeedClick = { navController.navigate(Screen.Feed.route) },
+                onRetakeQuestionnaire = { navController.navigate(Screen.Questionnaire.route) },
                 onFoodDiaryClick = { navController.navigate(Screen.FoodDiary.route) }
             )
         }

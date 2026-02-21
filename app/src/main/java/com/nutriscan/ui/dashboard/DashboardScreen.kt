@@ -20,7 +20,9 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.LocalFireDepartment
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Restaurant
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -42,6 +44,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.nutriscan.data.local.dao.MacroTotals
 import com.nutriscan.data.local.entity.MealLog
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -52,6 +55,7 @@ fun DashboardScreen(
     onAnalyticsClick: () -> Unit,
     onCaloriesBurnedClick: () -> Unit = {},
     onFeedClick: () -> Unit,
+    onRetakeQuestionnaire: () -> Unit = {},
     onFoodDiaryClick: () -> Unit = {},
     viewModel: DashboardViewModel = hiltViewModel()
 ) {
@@ -65,107 +69,143 @@ fun DashboardScreen(
     val isStepTrackingActive by viewModel.isStepTrackingActive.collectAsState()
     val todayWaterMl by viewModel.todayWaterMl.collectAsState()
     val waterGoalMl by viewModel.waterGoalMl.collectAsState()
-    
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("NutriScan") },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer
+
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+    val scope = rememberCoroutineScope()
+
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            ModalDrawerSheet {
+                Spacer(modifier = Modifier.height(24.dp))
+                Text(
+                    "Settings",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(horizontal = 28.dp, vertical = 8.dp)
                 )
-            )
-        },
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = onAddMealClick,
-                containerColor = MaterialTheme.colorScheme.primary
-            ) {
-                Icon(Icons.Default.Add, contentDescription = "Add Meal")
-            }
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                NavigationDrawerItem(
+                    icon = {
+                        Icon(Icons.Default.Refresh, contentDescription = null)
+                    },
+                    label = { Text("Re-take Questionnaire") },
+                    selected = false,
+                    onClick = {
+                        scope.launch { drawerState.close() }
+                        onRetakeQuestionnaire()
+                    },
+                    modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                )}
         }
-    ) { padding ->
-        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                // Calorie Progress Ring
-                item {
-                    CalorieProgressCard(
-//                        consumed = todayCalories,
-                        consumed = netCalories.toInt(),
+    ) {
+
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = { Text("NutriScan") },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer
+                    ),
+                    actions = {
+                        IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                            Icon(Icons.Default.Settings, contentDescription = "Settings")
+                        }
+                    }
+                )
+            },
+            floatingActionButton = {
+                FloatingActionButton(
+                    onClick = onAddMealClick,
+                    containerColor = MaterialTheme.colorScheme.primary
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = "Add Meal")
+                }
+            }
+        ) { padding ->
+            Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding)
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    // Calorie Progress Ring
+                    item {
+                        CalorieProgressCard(
+    //                        consumed = todayCalories,
+                            consumed = netCalories.toInt(),
                         goal = calorieGoal,
-                        macros = todayMacros,
-                        onAnalyticsClick
-                    )
-                }
+                            macros = todayMacros,
+                            onAnalyticsClick
+                        )
+                    }
 
-                // Weekly Average Card
-                item {
-                    WeeklyAverageCard(average = weeklyAverage.toInt())
-                }
+                    // Weekly Average Card
+                    item {
+                        WeeklyAverageCard(average = weeklyAverage.toInt())
+                    }
 
-                // Calories Burned / Activity Card
-                item {
-                    CaloriesBurnedQuickCard(
-                        steps = liveSteps,
-                        isTracking = isStepTrackingActive,
-                        onClick = onCaloriesBurnedClick
-                    )
-                }
+                    // Calories Burned / Activity Card
+                    item {
+                        CaloriesBurnedQuickCard(
+                            steps = liveSteps,
+                            isTracking = isStepTrackingActive,
+                            onClick = onCaloriesBurnedClick
+                        )
+                    }
 
-                // Water Tracker Card
-                item {
-                    WaterTrackerCard(
-                        currentMl = todayWaterMl,
-                        goalMl = waterGoalMl,
-                        onAdd250 = { viewModel.addWater(250) },
-                        onAdd500 = { viewModel.addWater(500) },
-                        onUndo = { viewModel.undoLastWater() }
-                    )
-                }
+                    // Water Tracker Card
+                    item {
+                        WaterTrackerCard(
+                            currentMl = todayWaterMl,
+                            goalMl = waterGoalMl,
+                            onAdd250 = { viewModel.addWater(250) },
+                            onAdd500 = { viewModel.addWater(500) },
+                            onUndo = { viewModel.undoLastWater() }
+                        )
+                    }
 
-                // Today's Meals Header
-                item {
-                    Row(
+                    // Today's Meals Header
+                    item {
+                        Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            "Today's Meals",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                        TextButton(onClick = onFoodDiaryClick) {
+                                "Today's Meals",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            TextButton(onClick = onFoodDiaryClick) {
                             Text("Food Diary →")
                         }
                     }
                 }
 
-                // Meal List
-                if (todayMeals.isEmpty()) {
-                    item {
-                        EmptyMealsCard(onAddMealClick = onAddMealClick)
-                    }
-                } else {
-                    items(todayMeals, key = { it.id }) { meal ->
-                        MealLogItem(
-                            meal = meal,
-                            onDelete = { viewModel.deleteMeal(meal.id) }
-                        )
+                    // Meal List
+                    if (todayMeals.isEmpty()) {
+                        item {
+                            EmptyMealsCard(onAddMealClick = onAddMealClick)
+                        }
+                    } else {
+                        items(todayMeals, key = { it.id }) { meal ->
+                            MealLogItem(
+                                meal = meal,
+                                onDelete = { viewModel.deleteMeal(meal.id) }
+                            )
+                        }
                     }
                 }
-            }
 
-            FloatingActionButton(
-                onClick = onFeedClick,
-                modifier = Modifier.align(Alignment.BottomStart).padding(16.dp)
-            ) {
-                Icon(Icons.Default.List, contentDescription = "Feed")
+                FloatingActionButton(
+                    onClick = onFeedClick,
+                    modifier = Modifier.align(Alignment.BottomStart).padding(16.dp)
+                ) {
+                    Icon(Icons.Default.List, contentDescription = "Feed")
+                }
             }
         }
     }
