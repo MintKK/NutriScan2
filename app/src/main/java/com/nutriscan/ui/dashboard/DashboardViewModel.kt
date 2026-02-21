@@ -7,6 +7,10 @@ import com.nutriscan.data.local.dao.DailyNetCalories
 import com.nutriscan.data.local.dao.MacroTotals
 import com.nutriscan.data.local.entity.MealLog
 import com.nutriscan.data.local.entity.StepLog
+import com.nutriscan.data.repository.AICoachRepository
+import com.nutriscan.data.repository.AchievementRepository
+import com.nutriscan.data.repository.AchievementState
+import com.nutriscan.data.repository.CoachInsight
 import com.nutriscan.data.repository.MealRepository
 import com.nutriscan.data.repository.StepRepository
 import com.nutriscan.data.repository.WaterRepository
@@ -27,7 +31,9 @@ import javax.inject.Inject
 class DashboardViewModel @Inject constructor(
     private val mealRepository: MealRepository,
     private val stepRepository: StepRepository,
-    private val waterRepository: WaterRepository
+    private val waterRepository: WaterRepository,
+    private val achievementRepository: AchievementRepository,
+    private val aiCoachRepository: AICoachRepository
 ) : ViewModel() {
     
     // User's calorie goal (can be made configurable via DataStore)
@@ -149,6 +155,47 @@ class DashboardViewModel @Inject constructor(
     fun undoLastWater() {
         viewModelScope.launch {
             waterRepository.undoLastEntry()
+        }
+    }
+    
+    // ============ ACHIEVEMENTS ============
+    
+    private val _achievementState = MutableStateFlow(
+        AchievementState(emptyList(), emptyList())
+    )
+    val achievementState: StateFlow<AchievementState> = _achievementState.asStateFlow()
+    
+    init {
+        refreshAchievements()
+    }
+    
+    fun refreshAchievements() {
+        viewModelScope.launch {
+            val waterGoal = waterGoalMl.value
+            val calorieGoalVal = calorieGoal.value
+            // Rough protein estimate: ~25% of calories / 4 kcal per gram
+            val proteinGoal = if (calorieGoalVal > 0) (calorieGoalVal * 0.25f / 4f) else 0f
+            _achievementState.value = achievementRepository.getAchievementState(
+                waterGoalMl = waterGoal,
+                proteinGoalG = proteinGoal
+            )
+        }
+    }
+    
+    // ============ AI COACH ============
+    
+    private val _coachInsights = MutableStateFlow<List<CoachInsight>>(emptyList())
+    val coachInsights: StateFlow<List<CoachInsight>> = _coachInsights.asStateFlow()
+    
+    fun refreshCoachInsights() {
+        viewModelScope.launch {
+            _coachInsights.value = aiCoachRepository.generateInsights(
+                currentMacros = todayMacros.value,
+                calorieGoal = calorieGoal.value,
+                currentCalories = todayCalories.value,
+                currentWaterMl = todayWaterMl.value,
+                waterGoalMl = waterGoalMl.value
+            )
         }
     }
 }

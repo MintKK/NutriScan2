@@ -83,8 +83,9 @@ fun NutriScanNavHost(
         composable(Screen.Questionnaire.route) {
             QuestionnaireScreen(
                 onFinished = { targets ->
-                    // save targets to SharedPreferences
+                    // Save to SharedPreferences (backward compat)
                     NutritionTargetsPrefs.save(prefs, targets)
+                    // DataStore save happens inside ViewModel.saveTargetsToDataStore()
 
                     navController.navigate(Screen.QuestionnaireResults.route) {
                         popUpTo(Screen.Questionnaire.route) { inclusive = true }

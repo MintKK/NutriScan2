@@ -32,4 +32,23 @@ interface WaterLogDao {
      */
     @Query("SELECT * FROM water_logs WHERE timestamp >= :startOfDay ORDER BY timestamp DESC LIMIT 1")
     suspend fun getMostRecentToday(startOfDay: Long): WaterLog?
+
+    /**
+     * Daily water totals for streak calculations.
+     */
+    @Query("""
+        SELECT 
+            date(timestamp / 1000, 'unixepoch', 'localtime') as day,
+            COALESCE(SUM(amount_ml), 0) as totalMl
+        FROM water_logs
+        WHERE timestamp >= :startTimestamp
+        GROUP BY day
+        ORDER BY day DESC
+    """)
+    suspend fun getDailyWaterTotals(startTimestamp: Long): List<DailyWaterTotal>
 }
+
+data class DailyWaterTotal(
+    val day: String,      // Format: "YYYY-MM-DD"
+    val totalMl: Int
+)

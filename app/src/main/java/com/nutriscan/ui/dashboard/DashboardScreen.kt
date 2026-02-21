@@ -41,6 +41,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.LaunchedEffect
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.nutriscan.data.local.dao.MacroTotals
 import com.nutriscan.data.local.entity.MealLog
@@ -69,6 +70,13 @@ fun DashboardScreen(
     val isStepTrackingActive by viewModel.isStepTrackingActive.collectAsState()
     val todayWaterMl by viewModel.todayWaterMl.collectAsState()
     val waterGoalMl by viewModel.waterGoalMl.collectAsState()
+    val achievementState by viewModel.achievementState.collectAsState()
+    val coachInsights by viewModel.coachInsights.collectAsState()
+    
+    // Refresh coach insights when data changes
+    LaunchedEffect(netCalories, todayWaterMl, todayMacros) {
+        viewModel.refreshCoachInsights()
+    }
 
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
@@ -131,6 +139,11 @@ fun DashboardScreen(
                         .padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
+                    // AI Coach Card (Daily Briefing)
+                    item {
+                        AICoachCard(insights = coachInsights)
+                    }
+                    
                     // Calorie Progress Ring
                     item {
                         CalorieProgressCard(
@@ -154,6 +167,11 @@ fun DashboardScreen(
                             isTracking = isStepTrackingActive,
                             onClick = onCaloriesBurnedClick
                         )
+                    }
+
+                    // Achievements Card
+                    item {
+                        AchievementCard(state = achievementState)
                     }
 
                     // Water Tracker Card

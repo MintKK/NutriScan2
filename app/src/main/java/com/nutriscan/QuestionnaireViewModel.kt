@@ -5,8 +5,16 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.nutriscan.data.repository.MealRepository
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.launch
+import javax.inject.Inject
 
-class QuestionnaireViewModel : ViewModel() {
+@HiltViewModel
+class QuestionnaireViewModel @Inject constructor(
+    private val mealRepository: MealRepository
+) : ViewModel() {
     var step by mutableIntStateOf(0)
         private set
 
@@ -18,20 +26,26 @@ class QuestionnaireViewModel : ViewModel() {
     var heightCm              by mutableStateOf("")
     var errorMessage          by mutableStateOf<String?>(null)
 
-    val totalSteps = 6
+    val totalSteps = 3
 
     fun next(): Boolean {
         errorMessage = null
         when (step) {
             0 -> if (selectedGoal == null) { errorMessage = "Please select a goal."; return false }
-            1 -> if (selectedGender == null) { errorMessage = "Please select a gender."; return false }
+            1 -> {
+                if (selectedGender == null) { errorMessage = "Please select a gender."; return false }
+                if (age.toIntOrNull() == null || age.toInt() < 1) { errorMessage = "Please enter a valid age."; return false }
+                if (weightKg.toFloatOrNull() == null || weightKg.toFloat() <= 0) { errorMessage = "Please enter a valid weight."; return false }
+                if (heightCm.toFloatOrNull() == null || heightCm.toFloat() <= 0) { errorMessage = "Please enter a valid height."; return false }
+            }
             2 -> if (selectedActivityLevel == null) { errorMessage = "Please select an activity level."; return false }
-            3 -> if (age.toIntOrNull() == null) { errorMessage = "Please enter a valid age."; return false }
-            4 -> if (weightKg.toFloatOrNull() == null) { errorMessage = "Please enter a valid weight."; return false }
-            5 -> if (heightCm.toFloatOrNull() == null) { errorMessage = "Please enter a valid height."; return false }
         }
-        if (step < totalSteps - 1) step++ else return true
-        return step == totalSteps
+        if (step < totalSteps - 1) { step++; return false }
+        return true // last step completed
+    }
+
+    fun goBack() {
+        if (step > 0) step--
     }
 
     fun buildProfile() = UserProfile(
@@ -42,4 +56,18 @@ class QuestionnaireViewModel : ViewModel() {
         heightCm      = heightCm.toFloat(),
         activityLevel = selectedActivityLevel!!
     )
+
+    /**
+     * Save calculated targets to DataStore so the Dashboard
+     * immediately reflects the new calorie and macro goals.
+     */
+    fun saveTargetsToDataStore(targets: NutritionTargets) {
+        viewModelScope.launch {
+            mealRepository.saveTargetCalories(targets.calories)
+            mealRepository.saveWeight(weightKg.toFloat().toInt())
+            mealRepository.saveHeight(heightCm.toFloat().toInt())
+            mealRepository.saveAge(age.toInt())
+            mealRepository.saveIsFemale(selectedGender == Gender.FEMALE)
+        }
+    }
 }
