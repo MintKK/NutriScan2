@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import com.nutriscan.data.local.dao.DailyCalories
+import com.nutriscan.data.local.dao.DailyMacros
 import com.nutriscan.data.local.dao.MacroTotals
 import com.nutriscan.data.local.dao.MealLogDao
 import com.nutriscan.data.local.entity.FoodItem
@@ -71,6 +72,8 @@ class MealRepository @Inject constructor(
         meal?.imagePath?.let { MealImageStorage.deleteMealImage(it) }
         mealLogDao.deleteById(id)
     }
+    
+    suspend fun getLogsForDate(date: String): List<MealLog> = mealLogDao.getLogsForDate(date)
 
     // ============ ANALYTICS ============
 
@@ -101,6 +104,21 @@ class MealRepository @Inject constructor(
     fun getWeeklyAverageCalories(): Flow<Float> {
         val sevenDaysAgo = getStartOfDayTimestamp() - (7 * 24 * 60 * 60 * 1000L)
         return mealLogDao.getWeeklyAverageCalories(sevenDaysAgo)
+    }
+    
+    fun getLast7DaysMacros(): Flow<List<DailyMacros>> {
+        val sevenDaysAgo = getStartOfDayTimestamp() - (7 * 24 * 60 * 60 * 1000L)
+        return mealLogDao.getDailyMacrosTrend(sevenDaysAgo)
+            .map { rawList -> fillMissingDaysMacros(rawList) }
+    }
+    
+    private fun fillMissingDaysMacros(data: List<DailyMacros>, daysCount: Int = 7): List<DailyMacros> {
+        val today = LocalDate.now()
+        val daysList = (0 until daysCount).map { today.minusDays((daysCount - 1 - it).toLong()) }
+        val dataByDay = data.associateBy { LocalDate.parse(it.day, formatter) }
+        return daysList.map { day ->
+            dataByDay[day] ?: DailyMacros(day.format(formatter), 0f, 0f, 0f, 0)
+        }
     }
 
     private object Keys {

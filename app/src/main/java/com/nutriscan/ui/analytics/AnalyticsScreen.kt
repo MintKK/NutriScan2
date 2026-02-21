@@ -5,6 +5,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -13,12 +14,14 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddLocation
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.TrendingDown
 import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -27,6 +30,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
@@ -35,7 +39,12 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.nutriscan.data.local.dao.DailyCalories
+import com.nutriscan.data.local.dao.DailyMacros
 import com.nutriscan.data.local.dao.DailyNetCalories
+import com.nutriscan.data.local.dao.MacroTotals
+import com.nutriscan.data.local.entity.MealLog
+import java.text.SimpleDateFormat
+import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -47,6 +56,12 @@ fun AnalyticsScreen(
     val last7Days by viewModel.last7DaysNet.collectAsState()
     val weeklyAverage by viewModel.weeklyAverageNet.collectAsState()
     val targetCalories by viewModel.getTargetCalories.collectAsState()
+    val last7DaysMacros by viewModel.last7DaysMacros.collectAsState()
+    val weeklyAverageMacros by viewModel.weeklyAverageMacros.collectAsState()
+    
+    // Drill-down state
+    val selectedDateLabel by viewModel.selectedDateLabel.collectAsState()
+    val selectedDateMeals by viewModel.selectedDateMeals.collectAsState()
     
     Scaffold(
         topBar = {
@@ -191,7 +206,110 @@ fun AnalyticsScreen(
             )
             
             last7Days.reversed().forEach { day ->
-                DailyCalorieRow(day, targetCalories)
+                DailyCalorieRow(
+                    day = day,
+                    targetCalories = targetCalories,
+                    onClick = { viewModel.selectDate(day.day) }
+                )
+            }
+            
+            Spacer(Modifier.height(8.dp))
+            
+            // ============ MACRO TRENDS ============
+            Text(
+                "Macro Trends (7 Days)",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+            
+            if (last7DaysMacros.any { it.protein > 0 || it.carbs > 0 || it.fat > 0 }) {
+                MacroTrendChart(
+                    data = last7DaysMacros,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(240.dp)
+                )
+                
+                WeeklyMacroInsightsCard(weeklyAverageMacros)
+                
+                Text(
+                    "Daily Macro Breakdown",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                
+                last7DaysMacros.reversed().forEach { day ->
+                    DailyMacroRow(
+                        day = day,
+                        onClick = { viewModel.selectDate(day.day) }
+                    )
+                }
+            } else {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                    )
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(100.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            "No macro data yet. Start logging meals!",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        }
+    }
+    
+    // ============ DRILL-DOWN BOTTOM SHEET ============
+    if (selectedDateLabel != null) {
+        ModalBottomSheet(
+            onDismissRequest = { viewModel.clearSelectedDate() },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+                    .padding(bottom = 32.dp)
+            ) {
+                Text(
+                    text = selectedDateLabel ?: "",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(bottom = 4.dp)
+                )
+                Text(
+                    text = "${selectedDateMeals.size} meal${if (selectedDateMeals.size != 1) "s" else ""} logged",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+                
+                if (selectedDateMeals.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(100.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            "No meals logged this day",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                } else {
+                    selectedDateMeals.forEach { meal ->
+                        BottomSheetMealItem(meal)
+                        Spacer(Modifier.height(8.dp))
+                    }
+                }
             }
         }
     }
@@ -441,9 +559,9 @@ fun CalorieTrendChart(
 }
 
 @Composable
-fun DailyCalorieRow(day: DailyNetCalories, targetCalories: Int) {
+fun DailyCalorieRow(day: DailyNetCalories, targetCalories: Int, onClick: () -> Unit = {}) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().clickable { onClick() },
         shape = RoundedCornerShape(8.dp)
     ) {
         Row(
@@ -478,3 +596,376 @@ fun DailyCalorieRow(day: DailyNetCalories, targetCalories: Int) {
         }
     }
 }
+
+// ============ MACRO TREND COMPOSABLES ============
+
+// Color constants for macros
+private val ProteinColor = Color(0xFF4CAF50)  // Green
+private val CarbsColor = Color(0xFFFF9800)    // Orange  
+private val FatColor = Color(0xFFF44336)      // Red
+
+/**
+ * 7-day stacked bar chart showing Protein, Carbs, Fat per day.
+ * Uses Compose Canvas for custom drawing.
+ */
+@Composable
+fun MacroTrendChart(
+    data: List<DailyMacros>,
+    modifier: Modifier = Modifier
+) {
+    val textMeasurer = rememberTextMeasurer()
+    
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            // Legend row
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                MacroLegendItem("Protein", ProteinColor)
+                MacroLegendItem("Carbs", CarbsColor)
+                MacroLegendItem("Fat", FatColor)
+            }
+            
+            Spacer(Modifier.height(12.dp))
+            
+            Canvas(modifier = modifier) {
+                val barCount = data.size
+                if (barCount == 0) return@Canvas
+                
+                val padding = 40f
+                val chartWidth = size.width - padding * 2
+                val chartHeight = size.height - padding * 2
+                val barWidth = chartWidth / barCount * 0.6f
+                val barSpacing = chartWidth / barCount
+                
+                // Find max total for scaling
+                val maxTotal = data.maxOf { it.protein + it.carbs + it.fat }.coerceAtLeast(1f)
+                
+                data.forEachIndexed { index, day ->
+                    val x = padding + index * barSpacing + (barSpacing - barWidth) / 2
+                    
+                    val proteinH = (day.protein / maxTotal) * chartHeight
+                    val carbsH = (day.carbs / maxTotal) * chartHeight
+                    val fatH = (day.fat / maxTotal) * chartHeight
+                    
+                    var yOffset = size.height - padding
+                    
+                    // Protein (bottom)
+                    drawRoundRect(
+                        color = ProteinColor,
+                        topLeft = Offset(x, yOffset - proteinH),
+                        size = Size(barWidth, proteinH),
+                        cornerRadius = CornerRadius(4f, 4f)
+                    )
+                    yOffset -= proteinH
+                    
+                    // Carbs (middle)
+                    drawRoundRect(
+                        color = CarbsColor,
+                        topLeft = Offset(x, yOffset - carbsH),
+                        size = Size(barWidth, carbsH),
+                        cornerRadius = CornerRadius(4f, 4f)
+                    )
+                    yOffset -= carbsH
+                    
+                    // Fat (top)
+                    drawRoundRect(
+                        color = FatColor,
+                        topLeft = Offset(x, yOffset - fatH),
+                        size = Size(barWidth, fatH),
+                        cornerRadius = CornerRadius(4f, 4f)
+                    )
+                    
+                    // Day label
+                    val dayLabel = day.day.takeLast(5) // "MM-DD"
+                    val textResult = textMeasurer.measure(
+                        dayLabel,
+                        style = TextStyle(fontSize = androidx.compose.ui.unit.TextUnit(10f, androidx.compose.ui.unit.TextUnitType.Sp))
+                    )
+                    drawText(
+                        textResult,
+                        topLeft = Offset(
+                            x + barWidth / 2 - textResult.size.width / 2,
+                            size.height - padding + 8f
+                        )
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MacroLegendItem(label: String, color: Color) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(10.dp)
+                .background(color, CircleShape)
+        )
+        Text(label, style = MaterialTheme.typography.labelSmall)
+    }
+}
+
+/**
+ * Card showing weekly average P/C/F with progress bars.
+ */
+@Composable
+fun WeeklyMacroInsightsCard(macros: MacroTotals) {
+    val total = macros.protein + macros.carbs + macros.fat
+    
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                "Weekly Avg. Macros / Day",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold
+            )
+            
+            MacroProgressRow(
+                label = "Protein",
+                value = macros.protein,
+                total = total,
+                color = ProteinColor
+            )
+            MacroProgressRow(
+                label = "Carbs",
+                value = macros.carbs,
+                total = total,
+                color = CarbsColor
+            )
+            MacroProgressRow(
+                label = "Fat",
+                value = macros.fat,
+                total = total,
+                color = FatColor
+            )
+        }
+    }
+}
+
+@Composable
+private fun MacroProgressRow(
+    label: String,
+    value: Float,
+    total: Float,
+    color: Color
+) {
+    val fraction = if (total > 0) value / total else 0f
+    val percentage = (fraction * 100).toInt()
+    
+    Column {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(label, style = MaterialTheme.typography.bodyMedium)
+            Text(
+                "${"%.0f".format(value)}g ($percentage%)",
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium,
+                color = color
+            )
+        }
+        Spacer(Modifier.height(4.dp))
+        LinearProgressIndicator(
+            progress = { fraction },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(8.dp),
+            color = color,
+            trackColor = color.copy(alpha = 0.15f),
+            strokeCap = StrokeCap.Round,
+        )
+    }
+}
+
+/**
+ * Per-day macro breakdown row with inline colored bars.
+ */
+@Composable
+fun DailyMacroRow(day: DailyMacros, onClick: () -> Unit = {}) {
+    val dayLabel = try {
+        val parsed = java.time.LocalDate.parse(day.day)
+        parsed.format(java.time.format.DateTimeFormatter.ofPattern("EEE, MMM d"))
+    } catch (e: Exception) {
+        day.day
+    }
+    
+    Card(
+        modifier = Modifier.fillMaxWidth().clickable { onClick() },
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    dayLabel,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium
+                )
+                Text(
+                    "${day.kcal} kcal",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+            
+            Spacer(Modifier.height(8.dp))
+            
+            // Stacked horizontal bar
+            val total = day.protein + day.carbs + day.fat
+            if (total > 0) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(12.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                ) {
+                    Box(
+                        Modifier
+                            .weight(day.protein.coerceAtLeast(0.1f))
+                            .fillMaxHeight()
+                            .background(ProteinColor)
+                    )
+                    Box(
+                        Modifier
+                            .weight(day.carbs.coerceAtLeast(0.1f))
+                            .fillMaxHeight()
+                            .background(CarbsColor)
+                    )
+                    Box(
+                        Modifier
+                            .weight(day.fat.coerceAtLeast(0.1f))
+                            .fillMaxHeight()
+                            .background(FatColor)
+                    )
+                }
+            }
+            
+            Spacer(Modifier.height(4.dp))
+            
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text("P: ${"%.0f".format(day.protein)}g", style = MaterialTheme.typography.labelSmall, color = ProteinColor)
+                Text("C: ${"%.0f".format(day.carbs)}g", style = MaterialTheme.typography.labelSmall, color = CarbsColor)
+                Text("F: ${"%.0f".format(day.fat)}g", style = MaterialTheme.typography.labelSmall, color = FatColor)
+            }
+        }
+    }
+}
+
+/**
+ * Meal item shown inside the drill-down bottom sheet.
+ * Shows photo thumbnail (or icon), food name, time, grams, kcal, and macro badges.
+ */
+@Composable
+private fun BottomSheetMealItem(meal: MealLog) {
+    val timeFormat = remember { SimpleDateFormat("h:mm a", Locale.getDefault()) }
+    
+    val mealBitmap = remember(meal.imagePath) {
+        meal.imagePath?.let { path ->
+            try { android.graphics.BitmapFactory.decodeFile(path) }
+            catch (e: Exception) { null }
+        }
+    }
+    
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Photo or icon
+            Box(
+                modifier = Modifier
+                    .size(52.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(MaterialTheme.colorScheme.surface),
+                contentAlignment = Alignment.Center
+            ) {
+                if (mealBitmap != null) {
+                    androidx.compose.foundation.Image(
+                        bitmap = mealBitmap.asImageBitmap(),
+                        contentDescription = meal.foodName,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                    )
+                } else {
+                    Icon(
+                        Icons.Default.Restaurant,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            }
+            
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = meal.foodName.replaceFirstChar { it.uppercase() },
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Medium
+                )
+                Text(
+                    text = "${meal.grams}g • ${timeFormat.format(Date(meal.timestamp))}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(4.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("P:${"%.0f".format(meal.proteinTotal)}g", style = MaterialTheme.typography.labelSmall, color = ProteinColor)
+                    Text("C:${"%.0f".format(meal.carbsTotal)}g", style = MaterialTheme.typography.labelSmall, color = CarbsColor)
+                    Text("F:${"%.0f".format(meal.fatTotal)}g", style = MaterialTheme.typography.labelSmall, color = FatColor)
+                }
+            }
+            
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    text = "${meal.kcalTotal}",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Text(
+                    text = "kcal",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
