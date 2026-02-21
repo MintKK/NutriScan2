@@ -10,6 +10,7 @@ import com.nutriscan.data.local.entity.StepLog
 import com.nutriscan.data.repository.AICoachRepository
 import com.nutriscan.data.repository.AchievementRepository
 import com.nutriscan.data.repository.AchievementState
+import com.nutriscan.data.repository.Badge
 import com.nutriscan.data.repository.CoachInsight
 import com.nutriscan.data.repository.MealRepository
 import com.nutriscan.data.repository.StepRepository
@@ -22,6 +23,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -178,12 +180,26 @@ class DashboardViewModel @Inject constructor(
         }
     }
     
+    fun setWaterGoal(goalMl: Int) {
+        viewModelScope.launch {
+            waterRepository.setWaterGoal(goalMl)
+        }
+    }
+    
     // ============ ACHIEVEMENTS ============
     
     private val _achievementState = MutableStateFlow(
         AchievementState(emptyList(), emptyList())
     )
     val achievementState: StateFlow<AchievementState> = _achievementState.asStateFlow()
+    
+    // Track newly-earned badges for one-time celebration
+    private val _newlyEarnedBadge = MutableStateFlow<Badge?>(null)
+    val newlyEarnedBadge: StateFlow<Badge?> = _newlyEarnedBadge.asStateFlow()
+    
+    fun dismissBadgeCelebration() {
+        _newlyEarnedBadge.value = null
+    }
     
     init {
         refreshAchievements()
@@ -199,10 +215,20 @@ class DashboardViewModel @Inject constructor(
                     if (cal > 0) (cal * 0.25f / 4f) else 0f
                 }
             }
-            _achievementState.value = achievementRepository.getAchievementState(
+            val oldBadges = _achievementState.value.badges
+            val newState = achievementRepository.getAchievementState(
                 waterGoalMl = waterGoal,
                 proteinGoalG = proteinGoal
             )
+            _achievementState.value = newState
+            
+            // Detect newly earned badge (was not earned before, is earned now)
+            val newBadge = newState.badges.firstOrNull { newBadge ->
+                newBadge.isEarned && oldBadges.any { it.id == newBadge.id && !it.isEarned }
+            }
+            if (newBadge != null) {
+                _newlyEarnedBadge.value = newBadge
+            }
         }
     }
     
@@ -223,6 +249,50 @@ class DashboardViewModel @Inject constructor(
                 carbGoalG = targetCarbs.value,
                 fatGoalG = targetFat.value
             )
+        }
+    }
+    
+    // ============ QUICK PROFILE EDITING ============
+    
+    fun updateWeight(value: Int) {
+        viewModelScope.launch {
+            mealRepository.saveWeight(value)
+            recalculateTargets()
+        }
+    }
+    
+    fun updateHeight(value: Int) {
+        viewModelScope.launch {
+            mealRepository.saveHeight(value)
+            recalculateTargets()
+        }
+    }
+    
+    fun updateAge(value: Int) {
+        viewModelScope.launch {
+            mealRepository.saveAge(value)
+            recalculateTargets()
+        }
+    }
+    
+    private suspend fun recalculateTargets() {
+        val weight = mealRepository.getWeight().first()
+        val height = mealRepository.getHeight().first()
+        val age = mealRepository.getAge().first()
+        val isFemale = mealRepository.getIsFemale().first()
+        
+        if (weight > 0 && height > 0 && age > 0) {
+            val profile = com.nutriscan.UserProfile(
+                goal = com.nutriscan.Goal.WEIGHT_MAINTENANCE, // preserved from last questionnaire
+                gender = if (isFemale) com.nutriscan.Gender.FEMALE else com.nutriscan.Gender.MALE,
+                age = age,
+                weightKg = weight.toFloat(),
+                heightCm = height.toFloat(),
+                activityLevel = com.nutriscan.ActivityLevel.MODERATELY_ACTIVE
+            )
+            val targets = com.nutriscan.NutritionCalculator.calculateTargets(profile)
+            mealRepository.saveTargetCalories(targets.calories)
+            mealRepository.saveTargetMacros(targets.proteinGrams, targets.carbGrams, targets.fatGrams)
         }
     }
 }
