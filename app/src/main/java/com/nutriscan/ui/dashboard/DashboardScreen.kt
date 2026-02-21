@@ -1,6 +1,11 @@
 package com.nutriscan.ui.dashboard
 
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -21,10 +26,15 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -53,6 +63,8 @@ fun DashboardScreen(
     val weeklyAverage by viewModel.weeklyAverageNet.collectAsState()
     val liveSteps by viewModel.liveSteps.collectAsState()
     val isStepTrackingActive by viewModel.isStepTrackingActive.collectAsState()
+    val todayWaterMl by viewModel.todayWaterMl.collectAsState()
+    val waterGoalMl by viewModel.waterGoalMl.collectAsState()
     
     Scaffold(
         topBar = {
@@ -102,6 +114,17 @@ fun DashboardScreen(
                         steps = liveSteps,
                         isTracking = isStepTrackingActive,
                         onClick = onCaloriesBurnedClick
+                    )
+                }
+
+                // Water Tracker Card
+                item {
+                    WaterTrackerCard(
+                        currentMl = todayWaterMl,
+                        goalMl = waterGoalMl,
+                        onAdd250 = { viewModel.addWater(250) },
+                        onAdd500 = { viewModel.addWater(500) },
+                        onUndo = { viewModel.undoLastWater() }
                     )
                 }
 
@@ -478,3 +501,200 @@ fun CaloriesBurnedQuickCard(
     }
 }
 
+// ============ WATER TRACKER ============
+
+private val WaterBlue = Color(0xFF2196F3)
+private val WaterBlueDark = Color(0xFF1565C0)
+private val WaterBlueLight = Color(0xFF64B5F6)
+
+@Composable
+fun WaterTrackerCard(
+    currentMl: Int,
+    goalMl: Int,
+    onAdd250: () -> Unit,
+    onAdd500: () -> Unit,
+    onUndo: () -> Unit
+) {
+    val fraction = if (goalMl > 0) (currentMl.toFloat() / goalMl).coerceIn(0f, 1f) else 0f
+    val percentage = (fraction * 100).toInt()
+    
+    // Smooth animated fill level
+    val animatedFill by animateFloatAsState(
+        targetValue = fraction,
+        animationSpec = tween(durationMillis = 600),
+        label = "waterFill"
+    )
+    
+    // Continuous wave animation
+    val infiniteTransition = rememberInfiniteTransition(label = "wave")
+    val wavePhase by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 2f * Math.PI.toFloat(),
+        animationSpec = infiniteRepeatable(
+            animation = tween(2000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "wavePhase"
+    )
+    
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            // Header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "💧 Hydration",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                if (currentMl > 0) {
+                    TextButton(onClick = onUndo) {
+                        Text("Undo", color = MaterialTheme.colorScheme.error)
+                    }
+                }
+            }
+            
+            Spacer(Modifier.height(12.dp))
+            
+            // Wave animation circle
+            Box(
+                modifier = Modifier.size(160.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    val w = size.width
+                    val h = size.height
+                    val radius = w / 2f
+                    val center = Offset(radius, radius)
+                    
+                    // Background circle
+                    drawCircle(
+                        color = WaterBlueLight.copy(alpha = 0.15f),
+                        radius = radius,
+                        center = center
+                    )
+                    
+                    // Clipped wave fill
+                    val clipPath = Path().apply {
+                        addOval(
+                            androidx.compose.ui.geometry.Rect(0f, 0f, w, h)
+                        )
+                    }
+                    
+                    clipPath(clipPath) {
+                        // Water level (bottom to top)
+                        val waterTop = h * (1f - animatedFill)
+                        
+                        // Wave 1
+                        val wavePath1 = Path().apply {
+                            moveTo(0f, waterTop)
+                            for (x in 0..w.toInt()) {
+                                val y = waterTop + 6f * kotlin.math.sin(
+                                    (x.toFloat() / w) * 4f * Math.PI.toFloat() + wavePhase
+                                )
+                                lineTo(x.toFloat(), y)
+                            }
+                            lineTo(w, h)
+                            lineTo(0f, h)
+                            close()
+                        }
+                        
+                        drawPath(
+                            wavePath1,
+                            brush = Brush.verticalGradient(
+                                colors = listOf(WaterBlue, WaterBlueDark),
+                                startY = waterTop,
+                                endY = h
+                            )
+                        )
+                        
+                        // Wave 2 (offset, slightly transparent)
+                        val wavePath2 = Path().apply {
+                            moveTo(0f, waterTop)
+                            for (x in 0..w.toInt()) {
+                                val y = waterTop + 4f * kotlin.math.sin(
+                                    (x.toFloat() / w) * 3f * Math.PI.toFloat() + wavePhase + 1.5f
+                                )
+                                lineTo(x.toFloat(), y)
+                            }
+                            lineTo(w, h)
+                            lineTo(0f, h)
+                            close()
+                        }
+                        
+                        drawPath(
+                            wavePath2,
+                            color = WaterBlueLight.copy(alpha = 0.4f)
+                        )
+                    }
+                    
+                    // Border circle
+                    drawCircle(
+                        color = WaterBlue.copy(alpha = 0.3f),
+                        radius = radius - 1f,
+                        center = center,
+                        style = Stroke(width = 3f)
+                    )
+                }
+                
+                // Center text
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        "$percentage%",
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = if (animatedFill > 0.5f) Color.White else WaterBlueDark
+                    )
+                    Text(
+                        "${currentMl}ml / ${goalMl}ml",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (animatedFill > 0.5f) Color.White.copy(alpha = 0.9f) 
+                               else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            
+            Spacer(Modifier.height(16.dp))
+            
+            // Quick-add buttons
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally)
+            ) {
+                OutlinedButton(
+                    onClick = onAdd250,
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = WaterBlue
+                    ),
+                    border = BorderStroke(1.dp, WaterBlue),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("+ 250ml")
+                }
+                Button(
+                    onClick = onAdd500,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = WaterBlue
+                    ),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("+ 500ml")
+                }
+            }
+        }
+    }
+}

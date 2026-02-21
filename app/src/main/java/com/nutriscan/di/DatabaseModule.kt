@@ -9,6 +9,7 @@ import com.nutriscan.data.local.dao.FoodItemDao
 import com.nutriscan.data.local.dao.MealLogDao
 import com.nutriscan.data.local.dao.StepLogDao
 import com.nutriscan.data.local.dao.ActivityLogDao
+import com.nutriscan.data.local.dao.WaterLogDao
 import com.nutriscan.data.local.entity.FoodItem
 import androidx.room.Room
 import androidx.room.RoomDatabase
@@ -99,5 +100,10 @@ object DatabaseModule {
     @Provides
     fun provideActivityLogDao(database: AppDatabase): ActivityLogDao {
         return database.activityLogDao()
+    }
+    
+    @Provides
+    fun provideWaterLogDao(database: AppDatabase): WaterLogDao {
+        return database.waterLogDao()
     }
 }

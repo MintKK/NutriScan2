@@ -9,6 +9,7 @@ import com.nutriscan.data.local.entity.MealLog
 import com.nutriscan.data.local.entity.StepLog
 import com.nutriscan.data.repository.MealRepository
 import com.nutriscan.data.repository.StepRepository
+import com.nutriscan.data.repository.WaterRepository
 import com.nutriscan.sensor.StepCounterService
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.Flow
@@ -25,7 +26,8 @@ import javax.inject.Inject
 @HiltViewModel
 class DashboardViewModel @Inject constructor(
     private val mealRepository: MealRepository,
-    private val stepRepository: StepRepository
+    private val stepRepository: StepRepository,
+    private val waterRepository: WaterRepository
 ) : ViewModel() {
     
     // User's calorie goal (can be made configurable via DataStore)
@@ -129,4 +131,24 @@ class DashboardViewModel @Inject constructor(
                 else daysWithMeals.sumOf { it.netKcal }.toFloat() / daysWithMeals.size
             }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0f)
+    
+    // ============ WATER TRACKING ============
+    
+    val todayWaterMl: StateFlow<Int> = waterRepository.getTodayTotal()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+    
+    val waterGoalMl: StateFlow<Int> = waterRepository.getWaterGoal()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 2000)
+    
+    fun addWater(amountMl: Int) {
+        viewModelScope.launch {
+            waterRepository.logWater(amountMl)
+        }
+    }
+    
+    fun undoLastWater() {
+        viewModelScope.launch {
+            waterRepository.undoLastEntry()
+        }
+    }
 }
