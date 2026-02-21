@@ -48,5 +48,8 @@ data class MealLog(
     @ColumnInfo(name = "fat_total")
     val fatTotal: Float,
     
-    val source: String = "ml"  // "ml" or "manual"
+    val source: String = "ml",  // "ml" or "manual"
+    
+    @ColumnInfo(name = "image_path")
+    val imagePath: String? = null  // Local file path for captured food photo
 )

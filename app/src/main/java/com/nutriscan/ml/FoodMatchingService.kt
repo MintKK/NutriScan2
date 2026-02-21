@@ -41,16 +41,6 @@ class FoodMatchingService @Inject constructor(
         }
         
         Log.d(TAG, "Index built: ${aliasIndex!!.size()} names, aliases loaded")
-        
-        // Debug: print all indexed aliases (also background)
-        withContext(Dispatchers.Default) {
-            foods.forEach { food ->
-                val aliases = food.aliases?.split(",")?.map { it.trim() }?.filter { it.isNotBlank() } ?: emptyList()
-                if (aliases.isNotEmpty()) {
-                    Log.d(TAG, "  ${food.name} → aliases: $aliases")
-                }
-            }
-        }
     }
     
     /**

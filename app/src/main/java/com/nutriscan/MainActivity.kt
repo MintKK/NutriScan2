@@ -17,7 +17,11 @@ class MainActivity : ComponentActivity() {
     
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        
+
+        val prefs = getSharedPreferences("app_prefs", MODE_PRIVATE)
+        val questionnaireDone = prefs.getBoolean("questionnaire_done", false)
+        val questionnaireSkipped = prefs.getBoolean("questionnaire_skipped", false)
+
         setContent {
             NutriScanTheme {
                 Surface(
@@ -25,7 +29,11 @@ class MainActivity : ComponentActivity() {
                     color = MaterialTheme.colorScheme.background
                 ) {
                     val navController = rememberNavController()
-                    NutriScanNavHost(navController = navController)
+                    NutriScanNavHost(
+                        navController = navController,
+                        prefs = prefs,
+                        showQuestionnaire = !questionnaireDone && !questionnaireSkipped
+                    )
                 }
             }
         }

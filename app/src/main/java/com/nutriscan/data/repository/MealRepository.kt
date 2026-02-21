@@ -8,10 +8,12 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import com.nutriscan.data.local.dao.DailyCalories
+import com.nutriscan.data.local.dao.DailyMacros
 import com.nutriscan.data.local.dao.MacroTotals
 import com.nutriscan.data.local.dao.MealLogDao
 import com.nutriscan.data.local.entity.FoodItem
 import com.nutriscan.data.local.entity.MealLog
+import com.nutriscan.util.MealImageStorage
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import java.util.Calendar
@@ -38,7 +40,8 @@ class MealRepository @Inject constructor(
     suspend fun logMeal(
         foodItem: FoodItem,
         grams: Int,
-        source: String = "ml"
+        source: String = "ml",
+        imagePath: String? = null
     ): Long {
         val factor = grams / 100f
         val log = MealLog(
@@ -49,7 +52,8 @@ class MealRepository @Inject constructor(
             proteinTotal = foodItem.proteinPer100g * factor,
             carbsTotal = foodItem.carbsPer100g * factor,
             fatTotal = foodItem.fatPer100g * factor,
-            source = source
+            source = source,
+            imagePath = imagePath
         )
         return mealLogDao.insert(log)
     }
@@ -59,6 +63,17 @@ class MealRepository @Inject constructor(
     fun getRecentLogs(limit: Int = 50): Flow<List<MealLog>> = mealLogDao.getRecentLogs(limit)
 
     suspend fun deleteLog(id: Int) = mealLogDao.deleteById(id)
+    
+    /**
+     * Delete a meal and its associated image file (if any).
+     */
+    suspend fun deleteLogWithImage(id: Int) {
+        val meal = mealLogDao.getById(id)
+        meal?.imagePath?.let { MealImageStorage.deleteMealImage(it) }
+        mealLogDao.deleteById(id)
+    }
+    
+    suspend fun getLogsForDate(date: String): List<MealLog> = mealLogDao.getLogsForDate(date)
 
     // ============ ANALYTICS ============
 
@@ -90,9 +105,27 @@ class MealRepository @Inject constructor(
         val sevenDaysAgo = getStartOfDayTimestamp() - (7 * 24 * 60 * 60 * 1000L)
         return mealLogDao.getWeeklyAverageCalories(sevenDaysAgo)
     }
+    
+    fun getLast7DaysMacros(): Flow<List<DailyMacros>> {
+        val sevenDaysAgo = getStartOfDayTimestamp() - (7 * 24 * 60 * 60 * 1000L)
+        return mealLogDao.getDailyMacrosTrend(sevenDaysAgo)
+            .map { rawList -> fillMissingDaysMacros(rawList) }
+    }
+    
+    private fun fillMissingDaysMacros(data: List<DailyMacros>, daysCount: Int = 7): List<DailyMacros> {
+        val today = LocalDate.now()
+        val daysList = (0 until daysCount).map { today.minusDays((daysCount - 1 - it).toLong()) }
+        val dataByDay = data.associateBy { LocalDate.parse(it.day, formatter) }
+        return daysList.map { day ->
+            dataByDay[day] ?: DailyMacros(day.format(formatter), 0f, 0f, 0f, 0)
+        }
+    }
 
     private object Keys {
         val TARGET_CALORIES = intPreferencesKey("target_calories")
+        val TARGET_PROTEIN = floatPreferencesKey("target_protein_g")
+        val TARGET_CARBS = floatPreferencesKey("target_carbs_g")
+        val TARGET_FAT = floatPreferencesKey("target_fat_g")
 
         val USER_IS_FEMALE = booleanPreferencesKey("user_isFemale")
         val USER_WEIGHT = intPreferencesKey("user_weight")
@@ -110,6 +143,26 @@ class MealRepository @Inject constructor(
     suspend fun saveTargetCalories(targetCal: Int) {
         dataStore.edit { prefs ->
             prefs[Keys.TARGET_CALORIES] = targetCal
+        }
+    }
+
+    fun getTargetProtein(): Flow<Float> = dataStore.data
+        .catch { emit(emptyPreferences()) }
+        .map { it[Keys.TARGET_PROTEIN] ?: 0f }
+
+    fun getTargetCarbs(): Flow<Float> = dataStore.data
+        .catch { emit(emptyPreferences()) }
+        .map { it[Keys.TARGET_CARBS] ?: 0f }
+
+    fun getTargetFat(): Flow<Float> = dataStore.data
+        .catch { emit(emptyPreferences()) }
+        .map { it[Keys.TARGET_FAT] ?: 0f }
+
+    suspend fun saveTargetMacros(proteinG: Int, carbsG: Int, fatG: Int) {
+        dataStore.edit { prefs ->
+            prefs[Keys.TARGET_PROTEIN] = proteinG.toFloat()
+            prefs[Keys.TARGET_CARBS] = carbsG.toFloat()
+            prefs[Keys.TARGET_FAT] = fatG.toFloat()
         }
     }
 

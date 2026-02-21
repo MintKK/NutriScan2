@@ -46,22 +46,35 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.nutriscan.data.local.entity.FoodItem
+import com.nutriscan.data.repository.CoachInsight
+import com.nutriscan.data.repository.InsightType
 import com.nutriscan.domain.model.PortionPreset
 import com.nutriscan.ml.FoodMatchResult
+import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 import java.util.concurrent.Executors
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddMealScreen(
+    initialSearchQuery: String? = null,
     onMealLogged: () -> Unit,
     onBack: () -> Unit,
     viewModel: AddMealViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    
+    // Handle initial search query if provided (e.g. from AI Coach swap suggestion)
+    LaunchedEffect(initialSearchQuery) {
+        if (!initialSearchQuery.isNullOrBlank()) {
+            viewModel.showManualSearch(initialSearchQuery)
+        }
+    }
     
     // Handle meal logged
     LaunchedEffect(uiState.mealLogged) {
@@ -97,6 +110,7 @@ fun AddMealScreen(
                         portionGrams = uiState.portionGrams,
                         nutrition = uiState.calculatedNutrition,
                         isLogging = uiState.isLogging,
+                        coachSuggestion = uiState.coachSuggestion,
                         onPortionChange = { viewModel.setPortionGrams(it) },
                         onPresetSelect = { viewModel.setPortionPreset(it) },
                         onConfirm = { viewModel.confirmMeal() },
@@ -134,6 +148,14 @@ fun AddMealScreen(
                         onDismiss = { viewModel.resetState() }
                     )
                 }
+                uiState.showBarcode -> {
+                    BarcodeScannerLauncher(
+                        isLoading = uiState.isScanningBarcode,
+                        error = uiState.error,
+                        onBarcodeScanned = { barcode -> viewModel.handleBarcodeResult(barcode) },
+                        onCancel = { viewModel.resetState() }
+                    )
+                }
                 else -> {
                     // Landing screen: choose input method
                     UnifiedFoodCapture(
@@ -142,7 +164,8 @@ fun AddMealScreen(
                         onImageCaptured = { bitmap -> viewModel.classifyImage(bitmap) },
                         onManualSearch = { viewModel.showManualSearch() },
                         onShowCamera = { viewModel.showCamera() },
-                        onShowGallery = { viewModel.showGallery() }
+                        onShowGallery = { viewModel.showGallery() },
+                        onShowBarcode = { viewModel.showBarcodeScanner() }
                     )
                 }
             }
@@ -377,6 +400,7 @@ fun ConfirmationSheet(
     portionGrams: Int,
     nutrition: com.nutriscan.domain.model.NutritionResult,
     isLogging: Boolean,
+    coachSuggestion: CoachInsight? = null,
     onPortionChange: (Int) -> Unit,
     onPresetSelect: (PortionPreset) -> Unit,
     onConfirm: () -> Unit,
@@ -512,6 +536,60 @@ fun ConfirmationSheet(
                     NutrientColumn("Protein", "%.1f".format(nutrition.protein), "g")
                     NutrientColumn("Carbs", "%.1f".format(nutrition.carbs), "g")
                     NutrientColumn("Fat", "%.1f".format(nutrition.fat), "g")
+                }
+            }
+        }
+        
+        Spacer(modifier = Modifier.height(12.dp))
+        
+        // Smart Switch Suggestion
+        if (coachSuggestion != null) {
+            val bubbleColor = when (coachSuggestion.type) {
+                InsightType.TIP -> Color(0xFFE3F2FD)
+                InsightType.WARNING -> Color(0xFFFFF3E0)
+                InsightType.SUCCESS -> Color(0xFFE8F5E9)
+                InsightType.INFO -> Color(0xFFF3E5F5)
+            }
+            val accentColor = when (coachSuggestion.type) {
+                InsightType.TIP -> Color(0xFF2196F3)
+                InsightType.WARNING -> Color(0xFFFF9800)
+                InsightType.SUCCESS -> Color(0xFF4CAF50)
+                InsightType.INFO -> Color(0xFF9C27B0)
+            }
+            Card(
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = bubbleColor),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(accentColor.copy(alpha = 0.15f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(coachSuggestion.emoji, fontSize = 18.sp)
+                    }
+                    Spacer(Modifier.width(10.dp))
+                    Column {
+                        Text(
+                            "Coach's Tip",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = accentColor
+                        )
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            coachSuggestion.message,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
                 }
             }
         }
@@ -676,7 +754,8 @@ fun UnifiedFoodCapture(
     onImageCaptured: (Bitmap) -> Unit,
     onManualSearch: () -> Unit,
     onShowCamera: () -> Unit,
-    onShowGallery: () -> Unit
+    onShowGallery: () -> Unit,
+    onShowBarcode: () -> Unit
 ) {
     val context = LocalContext.current
     
@@ -854,6 +933,37 @@ fun UnifiedFoodCapture(
                     )
                     Text(
                         "Search",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Medium,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+            
+            // Scan Barcode option
+            Card(
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable(enabled = !isClassifying) { onShowBarcode() },
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.tertiaryContainer
+                )
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        Icons.Default.QrCodeScanner,
+                        contentDescription = "Scan Barcode",
+                        modifier = Modifier.size(32.dp),
+                        tint = MaterialTheme.colorScheme.onTertiaryContainer
+                    )
+                    Text(
+                        "Barcode",
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Medium,
                         textAlign = TextAlign.Center
@@ -1117,3 +1227,358 @@ fun CandidateSelectionSheet(
     }
 }
 
+/**
+ * Launches the Google Code Scanner and handles the result.
+ * Also supports scanning barcodes from gallery images via ML Kit.
+ */
+@Composable
+fun BarcodeScannerLauncher(
+    isLoading: Boolean,
+    error: String?,
+    onBarcodeScanned: (String) -> Unit,
+    onCancel: () -> Unit
+) {
+    val context = LocalContext.current
+    var scannerLaunched by remember { mutableStateOf(false) }
+    var showOptions by remember { mutableStateOf(false) }
+    var galleryError by remember { mutableStateOf<String?>(null) }
+    var isDecodingImage by remember { mutableStateOf(false) }
+
+    // Gallery picker for barcode images
+    val galleryLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            isDecodingImage = true
+            galleryError = null
+            try {
+                val inputImage = com.google.mlkit.vision.common.InputImage
+                    .fromFilePath(context, uri)
+                val scanner = com.google.mlkit.vision.barcode.BarcodeScanning.getClient()
+                scanner.process(inputImage)
+                    .addOnSuccessListener { barcodes ->
+                        isDecodingImage = false
+                        val barcode = barcodes.firstOrNull()?.rawValue
+                        if (barcode != null) {
+                            onBarcodeScanned(barcode)
+                        } else {
+                            galleryError = "No barcode found in this image. Try a clearer photo."
+                        }
+                    }
+                    .addOnFailureListener { e ->
+                        isDecodingImage = false
+                        galleryError = "Failed to scan image: ${e.localizedMessage}"
+                    }
+            } catch (e: Exception) {
+                isDecodingImage = false
+                galleryError = "Could not load image: ${e.localizedMessage}"
+            }
+        }
+    }
+
+    // Launch live scanner automatically on first composition
+    LaunchedEffect(Unit) {
+        if (!scannerLaunched) {
+            scannerLaunched = true
+            val scanner = GmsBarcodeScanning.getClient(context)
+            scanner.startScan()
+                .addOnSuccessListener { barcode ->
+                    barcode.rawValue?.let { onBarcodeScanned(it) }
+                        ?: run { showOptions = true }
+                }
+                .addOnCanceledListener {
+                    showOptions = true
+                }
+                .addOnFailureListener {
+                    showOptions = true
+                }
+        }
+    }
+
+    // UI: Loading / Error / Options
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            modifier = Modifier.padding(32.dp)
+        ) {
+            when {
+                isLoading -> {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(48.dp),
+                        color = MaterialTheme.colorScheme.tertiary
+                    )
+                    Text(
+                        "Looking up product...",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        "Searching OpenFoodFacts database",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                isDecodingImage -> {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(48.dp),
+                        color = MaterialTheme.colorScheme.tertiary
+                    )
+                    Text(
+                        "Scanning image for barcode...",
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                }
+                error != null -> {
+                    Icon(
+                        Icons.Default.Warning,
+                        contentDescription = null,
+                        modifier = Modifier.size(48.dp),
+                        tint = MaterialTheme.colorScheme.error
+                    )
+                    Text(
+                        error,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.error,
+                        textAlign = TextAlign.Center
+                    )
+                    OutlinedButton(onClick = onCancel) {
+                        Text("Go Back")
+                    }
+                }
+                showOptions -> {
+                    // User cancelled live scanner or it failed — show retry options
+                    Icon(
+                        Icons.Default.QrCodeScanner,
+                        contentDescription = null,
+                        modifier = Modifier.size(64.dp),
+                        tint = MaterialTheme.colorScheme.tertiary
+                    )
+
+                    Text(
+                        "Scan a Barcode",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    if (galleryError != null) {
+                        Text(
+                            galleryError!!,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+
+                    Spacer(Modifier.height(8.dp))
+
+                    // Live scanner button
+                    Button(
+                        onClick = {
+                            val scanner = GmsBarcodeScanning.getClient(context)
+                            scanner.startScan()
+                                .addOnSuccessListener { barcode ->
+                                    barcode.rawValue?.let { onBarcodeScanned(it) }
+                                }
+                                .addOnCanceledListener { /* stay on options */ }
+                                .addOnFailureListener { /* stay on options */ }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.CameraAlt, null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Scan with Camera")
+                    }
+
+                    // Gallery scanner button
+                    OutlinedButton(
+                        onClick = { galleryLauncher.launch("image/*") },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.PhotoLibrary, null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Scan from Photo")
+                    }
+
+                    // Cancel button
+                    TextButton(onClick = onCancel) {
+                        Text("Cancel")
+                    }
+                }
+                else -> {
+                    // Initial state while live scanner is launching
+                    Icon(
+                        Icons.Default.QrCodeScanner,
+                        contentDescription = null,
+                        modifier = Modifier.size(64.dp),
+                        tint = MaterialTheme.colorScheme.tertiary
+                    )
+                    Text(
+                        "Opening barcode scanner...",
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * OCR Label Scanner: captures or picks an image of a nutrition label,
+ * then sends it to the ViewModel for OCR processing.
+ */
+@Composable
+fun OCRLabelScanner(
+    isProcessing: Boolean,
+    error: String?,
+    onImageCaptured: (Bitmap) -> Unit,
+    onCancel: () -> Unit
+) {
+    val context = LocalContext.current
+    var galleryError by remember { mutableStateOf<String?>(null) }
+
+    // Gallery picker for label images
+    val galleryLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            try {
+                val bitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    ImageDecoder.decodeBitmap(
+                        ImageDecoder.createSource(context.contentResolver, uri)
+                    ) { decoder, _, _ ->
+                        decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+                        decoder.isMutableRequired = true
+                    }
+                } else {
+                    @Suppress("DEPRECATION")
+                    MediaStore.Images.Media.getBitmap(context.contentResolver, uri)
+                }
+                onImageCaptured(bitmap)
+            } catch (e: Exception) {
+                galleryError = "Could not load image: ${e.localizedMessage}"
+            }
+        }
+    }
+
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            modifier = Modifier.padding(32.dp)
+        ) {
+            when {
+                isProcessing -> {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(48.dp),
+                        color = MaterialTheme.colorScheme.tertiary
+                    )
+                    Text(
+                        "Reading nutrition label...",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        "Extracting calories, protein, carbs & fat",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                error != null -> {
+                    Icon(
+                        Icons.Default.Warning,
+                        contentDescription = null,
+                        modifier = Modifier.size(48.dp),
+                        tint = MaterialTheme.colorScheme.error
+                    )
+                    Text(
+                        error,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.error,
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Button(
+                        onClick = { galleryLauncher.launch("image/*") }
+                    ) {
+                        Icon(Icons.Default.Refresh, null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Try Again")
+                    }
+                    TextButton(onClick = onCancel) {
+                        Text("Cancel")
+                    }
+                }
+                galleryError != null -> {
+                    Icon(
+                        Icons.Default.Warning,
+                        contentDescription = null,
+                        modifier = Modifier.size(48.dp),
+                        tint = MaterialTheme.colorScheme.error
+                    )
+                    Text(
+                        galleryError!!,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.error,
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Button(
+                        onClick = {
+                            galleryError = null
+                            galleryLauncher.launch("image/*")
+                        }
+                    ) {
+                        Text("Try Again")
+                    }
+                    TextButton(onClick = onCancel) {
+                        Text("Cancel")
+                    }
+                }
+                else -> {
+                    // Main options screen
+                    Icon(
+                        Icons.Default.DocumentScanner,
+                        contentDescription = null,
+                        modifier = Modifier.size(64.dp),
+                        tint = MaterialTheme.colorScheme.tertiary
+                    )
+                    Text(
+                        "Scan Nutrition Label",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        "Take a photo or pick an image of a nutrition facts label to auto-fill calorie and macro data.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        textAlign = TextAlign.Center,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Pick from gallery
+                    Button(
+                        onClick = { galleryLauncher.launch("image/*") },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.PhotoLibrary, null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Choose from Gallery")
+                    }
+
+                    // Cancel
+                    TextButton(onClick = onCancel) {
+                        Text("Cancel")
+                    }
+                }
+            }
+        }
+    }
+}

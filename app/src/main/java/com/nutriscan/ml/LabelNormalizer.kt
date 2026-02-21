@@ -69,6 +69,16 @@ object LabelNormalizer {
     private fun singularize(word: String): String {
         // Too short to reliably singularize
         if (word.length < 4) return word
+
+        // Special case: words like "apples", "noodles", "pickles" where removing
+        // "es" incorrectly yields "appl", "noodl", "pickl". If the word ends in
+        // a consonant + "les", just drop the trailing "s".
+        if (word.endsWith("les") && word.length >= 5) {
+            val charBeforeLes = word[word.length - 4]
+            if (charBeforeLes !in "aeiou") {
+                return word.dropLast(1) // "apples" → "apple"
+            }
+        }
         
         for ((suffix, replacement) in PLURAL_RULES) {
             if (word.endsWith(suffix)) {

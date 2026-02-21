@@ -215,6 +215,7 @@ class SocialRepository @Inject constructor(
 
         val followingIds = followsSnapshot.documents.mapNotNull { it.getString("followingID") }
         val allUserIDs = followingIds + userId
+        val allFollowedIds = (followingIds + userId).distinct()
 
         if (allUserIDs.isEmpty()) {
             emit(emptyList<Post>())
@@ -223,13 +224,36 @@ class SocialRepository @Inject constructor(
 
         // Get posts
         val postsSnapshot = postsCollection
-            .whereIn("userID", allUserIDs)
             .orderBy("created", Query.Direction.DESCENDING)
             .limit(50)
             .get()
             .await()
 
-        emit(postsSnapshot.toObjects<Post>())
+        // posts from followed users
+        val followedPosts = mutableListOf<Post>()
+        if (allFollowedIds.isNotEmpty()) {
+            allFollowedIds.chunked(10).forEach { chunk ->
+                val snap = postsCollection
+                    .whereIn("userID", chunk)
+                    .orderBy("created", Query.Direction.DESCENDING)
+                    .limit(50)
+                    .get()
+                    .await()
+
+                followedPosts += snap.toObjects<Post>()
+            }
+        }
+
+        // other posts
+        val otherPostsSnap = postsCollection
+            .orderBy("created", Query.Direction.DESCENDING)
+            .limit(50)
+            .get()
+            .await()
+
+        val otherPosts = otherPostsSnap.toObjects<Post>().filter { it.userID !in allFollowedIds }
+
+        emit(followedPosts + otherPosts)
     }.flowOn(Dispatchers.IO)
 
     fun getFeedPostsRealtime(userId: String): Flow<List<Post>> = callbackFlow {

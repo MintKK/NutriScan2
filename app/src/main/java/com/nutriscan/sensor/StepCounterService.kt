@@ -53,6 +53,8 @@ class StepCounterService : LifecycleService() {
         private const val NOTIFICATION_ID = 1001
         private const val PERSIST_INTERVAL_MS = 10_000L // save every 10s
         private const val WAKE_LOCK_TAG = "NutriScan:StepCounterWakeLock"
+        private const val STEP_IDLE_THRESHOLD_MS = 5_000L // 5s without a step = idle
+        private const val ACTIVE_TICK_MS = 1_000L          // tick every 1s
 
         // ---- Stride lengths (meters) ----
         private const val STRIDE_WALKING = 0.762
@@ -80,6 +82,10 @@ class StepCounterService : LifecycleService() {
         /** Whether step counting is paused (e.g., in vehicle). */
         private val _isPaused = MutableStateFlow(false)
         val isPaused: StateFlow<Boolean> = _isPaused.asStateFlow()
+
+        /** Fallback active seconds counter (step-based, works on emulators). */
+        private val _activeSeconds = MutableStateFlow(0L)
+        val activeSeconds: StateFlow<Long> = _activeSeconds.asStateFlow()
 
         /** Start the service. */
         fun start(context: Context) {
@@ -118,9 +124,13 @@ class StepCounterService : LifecycleService() {
     private var currentDate: String = ""
     private var lastStepsForDistance: Int = 0
     private var wakeLock: PowerManager.WakeLock? = null
+    private var activeTimeJob: Job? = null
 
     // Tracks the step count when vehicle mode was entered, to discard vehicle steps
     private var stepsAtVehicleEntry: Int? = null
+
+    // Timestamp of the last step received — used by the active-time ticker
+    @Volatile private var lastStepReceivedMs: Long = 0L
 
     // ============ Lifecycle ============
 
@@ -248,6 +258,7 @@ class StepCounterService : LifecycleService() {
                 // Compute distance from step delta
                 val stepDelta = steps - lastStepsForDistance
                 if (stepDelta > 0) {
+                    lastStepReceivedMs = System.currentTimeMillis()
                     val activity = ActivityTransitionManager.currentActivity.value
                     val stride = getStrideForActivity(activity)
                     _currentDistanceMeters.value += stepDelta * stride
@@ -266,6 +277,18 @@ class StepCounterService : LifecycleService() {
                 checkMidnightRollover()
             }
         }
+
+        // Fallback active-time ticker: counts seconds while steps are flowing
+        activeTimeJob = lifecycleScope.launch {
+            while (isActive) {
+                delay(ACTIVE_TICK_MS)
+                val now = System.currentTimeMillis()
+                val stepRecency = now - lastStepReceivedMs
+                if (lastStepReceivedMs > 0 && stepRecency < STEP_IDLE_THRESHOLD_MS && !_isPaused.value) {
+                    _activeSeconds.value++
+                }
+            }
+        }
     }
 
     private fun stopTracking() {
@@ -274,6 +297,7 @@ class StepCounterService : LifecycleService() {
         activityObserveJob?.cancel()
         observeJob?.cancel()
         persistJob?.cancel()
+        activeTimeJob?.cancel()
         stepCounterSensor?.stop()
         stepCounterSensor = null
         activityManager?.stop()

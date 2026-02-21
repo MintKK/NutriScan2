@@ -1,10 +1,17 @@
 package com.nutriscan.ui.addmeal
 
+import android.content.Context
 import android.graphics.Bitmap
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.nutriscan.data.local.entity.FoodItem
+import com.nutriscan.barcode.BarcodeResult
+import com.nutriscan.barcode.BarcodeService
+import com.nutriscan.util.MealImageStorage
+import dagger.hilt.android.qualifiers.ApplicationContext
+import com.nutriscan.data.repository.AICoachRepository
+import com.nutriscan.data.repository.CoachInsight
 import com.nutriscan.data.repository.FoodRepository
 import com.nutriscan.data.repository.MealRepository
 import com.nutriscan.domain.model.NutritionResult
@@ -16,6 +23,7 @@ import com.nutriscan.ml.FoodClassificationResult
 import com.nutriscan.ml.FoodClassificationService
 import com.nutriscan.ml.FoodMatchResult
 import com.nutriscan.ml.FoodMatchingService
+import com.nutriscan.ml.OCRScannerService
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -35,11 +43,15 @@ import javax.inject.Inject
  */
 @HiltViewModel
 class AddMealViewModel @Inject constructor(
+    @ApplicationContext private val appContext: Context,
     private val foodClassifier: FoodClassificationService,  // Interface, not concrete
     private val foodMatchingService: FoodMatchingService,
     private val foodRepository: FoodRepository,
     private val mealRepository: MealRepository,
-    private val calculateNutrition: CalculateNutritionUseCase
+    private val calculateNutrition: CalculateNutritionUseCase,
+    private val barcodeService: BarcodeService,
+    private val aiCoachRepository: AICoachRepository,
+    private val ocrScannerService: OCRScannerService
 ) : ViewModel() {
     
     companion object {
@@ -65,7 +77,7 @@ class AddMealViewModel @Inject constructor(
      */
     fun classifyImage(bitmap: Bitmap) {
         viewModelScope.launch {
-            _uiState.update { it.copy(isClassifying = true, error = null) }
+            _uiState.update { it.copy(isClassifying = true, error = null, capturedBitmap = bitmap) }
             
             try {
                 // Step 1: Run FOOD-SPECIFIC classification (filters non-food labels)
@@ -252,11 +264,13 @@ class AddMealViewModel @Inject constructor(
     fun selectFromCandidates(match: FoodMatchResult) {
         match.matchedFood?.let { food ->
             val nutrition = calculateNutrition(food, _uiState.value.portionGrams)
+            val suggestion = aiCoachRepository.getSuggestionForFood(food)
             _uiState.update { state ->
                 state.copy(
                     selectedFood = food,
                     mlLabel = match.mlLabel,
                     calculatedNutrition = nutrition,
+                    coachSuggestion = suggestion,
                     showConfirmation = true,
                     showCandidateSelection = false
                 )
@@ -270,9 +284,11 @@ class AddMealViewModel @Inject constructor(
     fun selectFood(food: FoodItem) {
         _uiState.update { state ->
             val nutrition = calculateNutrition(food, state.portionGrams)
+            val suggestion = aiCoachRepository.getSuggestionForFood(food)
             state.copy(
                 selectedFood = food,
                 calculatedNutrition = nutrition,
+                coachSuggestion = suggestion,
                 showConfirmation = true,
                 showCandidateSelection = false,
                 showManualSearch = false
@@ -303,6 +319,7 @@ class AddMealViewModel @Inject constructor(
     
     /**
      * Confirm and log the meal.
+     * If a photo was captured, saves it to internal storage first.
      */
     fun confirmMeal() {
         val food = _uiState.value.selectedFood ?: return
@@ -316,8 +333,13 @@ class AddMealViewModel @Inject constructor(
             _uiState.update { it.copy(isLogging = true) }
             
             try {
-                mealRepository.logMeal(food, grams, source)
-                _uiState.update { it.copy(isLogging = false, mealLogged = true) }
+                // Save captured photo to internal storage (if available)
+                val imagePath = _uiState.value.capturedBitmap?.let { bitmap ->
+                    MealImageStorage.saveMealImage(appContext, bitmap)
+                }
+                
+                mealRepository.logMeal(food, grams, source, imagePath)
+                _uiState.update { it.copy(isLogging = false, mealLogged = true, capturedBitmap = null) }
             } catch (e: Exception) {
                 _uiState.update { it.copy(
                     isLogging = false,
@@ -337,13 +359,16 @@ class AddMealViewModel @Inject constructor(
     /**
      * Show manual search screen.
      */
-    fun showManualSearch() {
+    fun showManualSearch(query: String? = null) {
         _uiState.update { it.copy(
             showManualSearch = true,
             showCandidateSelection = false,
             showConfirmation = false,
             showCamera = false,
-            showGallery = false
+            showGallery = false,
+            showBarcode = false,
+            showOCRScanner = false,
+            searchHint = query ?: it.searchHint
         ) }
     }
     
@@ -356,7 +381,9 @@ class AddMealViewModel @Inject constructor(
             showGallery = false,
             showManualSearch = false,
             showCandidateSelection = false,
-            showConfirmation = false
+            showConfirmation = false,
+            showBarcode = false,
+            showOCRScanner = false
         ) }
     }
     
@@ -369,7 +396,9 @@ class AddMealViewModel @Inject constructor(
             showCamera = false,
             showManualSearch = false,
             showCandidateSelection = false,
-            showConfirmation = false
+            showConfirmation = false,
+            showBarcode = false,
+            showOCRScanner = false
         ) }
     }
     
@@ -398,6 +427,135 @@ class AddMealViewModel @Inject constructor(
      * Search for foods manually.
      */
     fun searchFoods(query: String) = foodRepository.searchFoods(query)
+    
+    // ============ BARCODE SCANNING ============
+    
+    /**
+     * Show barcode scanner.
+     */
+    fun showBarcodeScanner() {
+        _uiState.update { it.copy(
+            showBarcode = true,
+            showCamera = false,
+            showGallery = false,
+            showManualSearch = false,
+            showCandidateSelection = false,
+            showConfirmation = false,
+            showOCRScanner = false
+        ) }
+    }
+    
+    /**
+     * Handle a scanned barcode — look up via OpenFoodFacts.
+     */
+    fun handleBarcodeResult(barcode: String) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isScanningBarcode = true, error = null) }
+            
+            when (val result = barcodeService.lookupBarcode(barcode)) {
+                is BarcodeResult.Found -> {
+                    val food = result.food
+                    val nutrition = calculateNutrition(food, _uiState.value.portionGrams)
+                    val suggestion = aiCoachRepository.getSuggestionForFood(food)
+                    _uiState.update { it.copy(
+                        selectedFood = food,
+                        calculatedNutrition = nutrition,
+                        coachSuggestion = suggestion,
+                        mlLabel = "\uD83D\uDCE6 Barcode: $barcode",
+                        showConfirmation = true,
+                        showBarcode = false,
+                        isScanningBarcode = false
+                    ) }
+                }
+                is BarcodeResult.NotFound -> {
+                    // Product not in OpenFoodFacts — let user search by name
+                    _uiState.update { it.copy(
+                        showManualSearch = true,
+                        showBarcode = false,
+                        isScanningBarcode = false,
+                        searchHint = "",
+                        error = "Barcode $barcode not found in OpenFoodFacts. Search by product name instead."
+                    ) }
+                }
+                is BarcodeResult.Error -> {
+                    // Network/API error — stay on barcode screen so user sees the error
+                    _uiState.update { it.copy(
+                        isScanningBarcode = false,
+                        error = result.message
+                    ) }
+                }
+            }
+        }
+    }
+    
+    // ============ OCR LABEL SCANNING ============
+    
+    /**
+     * Show OCR scanner (re-uses camera or gallery picker).
+     */
+    fun showOCRScanner() {
+        _uiState.update { it.copy(
+            showOCRScanner = true,
+            showCamera = false,
+            showGallery = false,
+            showManualSearch = false,
+            showCandidateSelection = false,
+            showConfirmation = false,
+            showBarcode = false
+        ) }
+    }
+    
+    /**
+     * Process an image of a nutrition label via OCR.
+     * Extracts calories, protein, carbs, fat from the label text.
+     */
+    fun processOCRLabel(bitmap: Bitmap) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isProcessingOCR = true, error = null, capturedBitmap = bitmap) }
+            
+            try {
+                val result = ocrScannerService.extractNutrition(bitmap)
+                
+                if (!result.hasAnyData) {
+                    _uiState.update { it.copy(
+                        isProcessingOCR = false,
+                        error = "Could not find nutrition info in this image. Try a clearer photo of the label."
+                    ) }
+                    return@launch
+                }
+                
+                // Create a FoodItem from OCR data
+                val food = com.nutriscan.data.local.entity.FoodItem(
+                    name = "Scanned Label",
+                    kcalPer100g = result.calories ?: 0,
+                    proteinPer100g = result.protein ?: 0f,
+                    carbsPer100g = result.carbs ?: 0f,
+                    fatPer100g = result.fat ?: 0f,
+                    tags = "ocr,scanned"
+                )
+                
+                val nutrition = calculateNutrition(food, _uiState.value.portionGrams)
+                val suggestion = aiCoachRepository.getSuggestionForFood(food)
+                
+                _uiState.update { it.copy(
+                    isProcessingOCR = false,
+                    selectedFood = food,
+                    calculatedNutrition = nutrition,
+                    coachSuggestion = suggestion,
+                    mlLabel = "📋 Scanned Label" + (result.servingSize?.let { " ($it)" } ?: ""),
+                    showConfirmation = true,
+                    showOCRScanner = false
+                ) }
+                
+            } catch (e: Exception) {
+                Log.e(TAG, "OCR processing failed", e)
+                _uiState.update { it.copy(
+                    isProcessingOCR = false,
+                    error = "Label scan failed: ${e.localizedMessage}"
+                ) }
+            }
+        }
+    }
 }
 
 /**
@@ -418,12 +576,22 @@ data class AddMealUiState(
     val portionGrams: Int = 250,
     val calculatedNutrition: NutritionResult = NutritionResult.ZERO,
     
+    // Captured photo for food diary
+    val capturedBitmap: Bitmap? = null,
+    
     // Screen states (mutually exclusive)
     val showConfirmation: Boolean = false,
     val showCandidateSelection: Boolean = false,
     val showManualSearch: Boolean = false,
     val showCamera: Boolean = false,
     val showGallery: Boolean = false,
+    val showBarcode: Boolean = false,
+    val isScanningBarcode: Boolean = false,
+    val showOCRScanner: Boolean = false,
+    val isProcessingOCR: Boolean = false,
+    
+    // Smart Switch Suggestion
+    val coachSuggestion: CoachInsight? = null,
     
     // Other
     val searchHint: String = "",

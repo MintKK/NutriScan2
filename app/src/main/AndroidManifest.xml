@@ -8,6 +8,9 @@
         android:required="false" />
     <uses-permission android:name="android.permission.CAMERA" />
 
+    <!-- Internet for OpenFoodFacts barcode lookup -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <!-- Step counter sensor (optional — app falls back to accelerometer) -->
     <uses-feature
         android:name="android.hardware.sensor.stepcounter"
@@ -62,6 +65,17 @@
         <receiver
             android:name=".sensor.ActivityTransitionReceiver"
             android:exported="false" />
+
+        <!-- FileProvider for sharing exported reports -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.provider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
     </application>
 
 </manifest>

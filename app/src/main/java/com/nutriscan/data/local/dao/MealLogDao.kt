@@ -14,6 +14,14 @@ data class DailyCalories(
     val day: String,      // Format: "YYYY-MM-DD"
     val totalKcal: Int
 )
+// For net kcal
+data class DailyNetCalories(
+    val day: String,      // Format: "YYYY-MM-DD"
+    val eatenKcal: Int,
+    val burnedKcal: Int,
+    val netKcal: Int
+)
+
 
 /**
  * Data class for macro totals.
@@ -22,6 +30,17 @@ data class MacroTotals(
     val protein: Float,
     val carbs: Float,
     val fat: Float
+)
+
+/**
+ * Data class for daily macro totals (for trend charts).
+ */
+data class DailyMacros(
+    val day: String,       // Format: "YYYY-MM-DD"
+    val protein: Float,
+    val carbs: Float,
+    val fat: Float,
+    val kcal: Int
 )
 
 @Dao
@@ -36,11 +55,25 @@ interface MealLogDao {
     @Query("DELETE FROM meal_logs WHERE id = :id")
     suspend fun deleteById(id: Int)
     
+    @Query("SELECT * FROM meal_logs WHERE id = :id")
+    suspend fun getById(id: Int): MealLog?
+    
     @Query("SELECT * FROM meal_logs WHERE timestamp >= :startOfDay ORDER BY timestamp DESC")
     fun getTodayLogs(startOfDay: Long): Flow<List<MealLog>>
     
     @Query("SELECT * FROM meal_logs ORDER BY timestamp DESC LIMIT :limit")
     fun getRecentLogs(limit: Int = 50): Flow<List<MealLog>>
+    
+    /**
+     * Get all logs for a specific date (YYYY-MM-DD format).
+     * Used for drill-down from analytics daily breakdown.
+     */
+    @Query("""
+        SELECT * FROM meal_logs 
+        WHERE date(timestamp / 1000, 'unixepoch', 'localtime') = :date
+        ORDER BY timestamp DESC
+    """)
+    suspend fun getLogsForDate(date: String): List<MealLog>
     
     // ============ ANALYTICS QUERIES ============
     
@@ -90,6 +123,24 @@ interface MealLogDao {
         )
     """)
     fun getWeeklyAverageCalories(startOfWeek: Long): Flow<Float>
+    
+    /**
+     * Get daily macro totals trend for last N days.
+     * Groups by date and sums protein, carbs, fat, and kcal.
+     */
+    @Query("""
+        SELECT 
+            date(timestamp / 1000, 'unixepoch', 'localtime') as day,
+            COALESCE(SUM(protein_total), 0) as protein,
+            COALESCE(SUM(carbs_total), 0) as carbs,
+            COALESCE(SUM(fat_total), 0) as fat,
+            COALESCE(SUM(kcal_total), 0) as kcal
+        FROM meal_logs
+        WHERE timestamp >= :startTimestamp
+        GROUP BY day
+        ORDER BY day ASC
+    """)
+    fun getDailyMacrosTrend(startTimestamp: Long): Flow<List<DailyMacros>>
     
     @Query("DELETE FROM meal_logs")
     suspend fun deleteAll()

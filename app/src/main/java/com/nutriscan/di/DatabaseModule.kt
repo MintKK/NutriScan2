@@ -9,6 +9,7 @@ import com.nutriscan.data.local.dao.FoodItemDao
 import com.nutriscan.data.local.dao.MealLogDao
 import com.nutriscan.data.local.dao.StepLogDao
 import com.nutriscan.data.local.dao.ActivityLogDao
+import com.nutriscan.data.local.dao.WaterLogDao
 import com.nutriscan.data.local.entity.FoodItem
 import androidx.room.Room
 import androidx.room.RoomDatabase
@@ -46,7 +47,16 @@ object DatabaseModule {
             .addCallback(object : RoomDatabase.Callback() {
                 override fun onCreate(db: SupportSQLiteDatabase) {
                     super.onCreate(db)
-                    // Seed database on creation
+                    // Seed database on first creation
+                    val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+                    scope.launch {
+                        seedDatabase(context, foodItemDaoProvider.get())
+                    }
+                }
+                
+                override fun onDestructiveMigration(db: SupportSQLiteDatabase) {
+                    super.onDestructiveMigration(db)
+                    // Re-seed after destructive migration (DB version bump)
                     val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
                     scope.launch {
                         seedDatabase(context, foodItemDaoProvider.get())
@@ -90,5 +100,10 @@ object DatabaseModule {
     @Provides
     fun provideActivityLogDao(database: AppDatabase): ActivityLogDao {
         return database.activityLogDao()
+    }
+    
+    @Provides
+    fun provideWaterLogDao(database: AppDatabase): WaterLogDao {
+        return database.waterLogDao()
     }
 }
