@@ -63,6 +63,13 @@ class ActivityRepository @Inject constructor(
         }
     }
 
+    /** Total active seconds for today (for UI display with seconds precision). */
+    fun getTodayActiveSeconds(): Flow<Long> {
+        return activityLogDao.getActivitiesForDate(todayDate()).map { logs ->
+            calculateActiveMs(logs) / 1000
+        }
+    }
+
     /**
      * Calculate total active minutes for a specific date.
      * For past dates, only counts completed ENTER/EXIT pairs.
@@ -93,6 +100,10 @@ class ActivityRepository @Inject constructor(
     // ============ CALCULATION ============
 
     private fun calculateActiveMinutes(logs: List<ActivityLog>, isToday: Boolean = true): Long {
+        return calculateActiveMs(logs, isToday) / 60_000
+    }
+
+    private fun calculateActiveMs(logs: List<ActivityLog>, isToday: Boolean = true): Long {
         var totalMs = 0L
         var activeStartTime: Long? = null
 
@@ -100,28 +111,24 @@ class ActivityRepository @Inject constructor(
             val isPhysicalActivity = log.activityType != "STILL" && log.activityType != "IN_VEHICLE"
 
             if (log.transitionType == "ENTER" && isPhysicalActivity) {
-                // Started an active period
                 activeStartTime = log.timestamp
             } else if (log.transitionType == "EXIT" && activeStartTime != null) {
-                // Ended an active period
                 totalMs += log.timestamp - activeStartTime
                 activeStartTime = null
             } else if (log.transitionType == "ENTER" &&
                 (log.activityType == "STILL" || log.activityType == "IN_VEHICLE") &&
                 activeStartTime != null
             ) {
-                // Became still or entered vehicle — end active period
                 totalMs += log.timestamp - activeStartTime
                 activeStartTime = null
             }
         }
 
-        // If still in an active period and it's today, count until now
         if (activeStartTime != null && isToday) {
             totalMs += System.currentTimeMillis() - activeStartTime
         }
 
-        return totalMs / 60_000 // convert to minutes
+        return totalMs
     }
 
     fun todayDate(): String = dateFormat.format(Date())

@@ -44,6 +44,9 @@ class CaloriesBurnedViewModel @Inject constructor(
     val activeMinutes: StateFlow<Long> = activityRepository.getTodayActiveMinutes()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0L)
 
+    /** Active seconds today (for UI display with seconds precision). */
+    val activeSeconds: StateFlow<Long> = StepCounterService.activeSeconds
+
     /** Whether tracking is active. */
     val isTrackingActive: StateFlow<Boolean> = StepCounterService.isServiceRunning
 

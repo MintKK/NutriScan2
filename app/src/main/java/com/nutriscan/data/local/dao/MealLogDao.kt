@@ -14,6 +14,14 @@ data class DailyCalories(
     val day: String,      // Format: "YYYY-MM-DD"
     val totalKcal: Int
 )
+// For net kcal
+data class DailyNetCalories(
+    val day: String,      // Format: "YYYY-MM-DD"
+    val eatenKcal: Int,
+    val burnedKcal: Int,
+    val netKcal: Int
+)
+
 
 /**
  * Data class for macro totals.

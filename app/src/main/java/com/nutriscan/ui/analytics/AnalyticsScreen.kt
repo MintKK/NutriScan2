@@ -1,30 +1,41 @@
 package com.nutriscan.ui.analytics
 
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddLocation
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.TrendingDown
 import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.nutriscan.data.local.dao.DailyCalories
+import com.nutriscan.data.local.dao.DailyNetCalories
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -33,8 +44,8 @@ fun AnalyticsScreen(
     onBack: () -> Unit,
     viewModel: AnalyticsViewModel = hiltViewModel()
 ) {
-    val last7Days by viewModel.last7DaysCalories.collectAsState()
-    val weeklyAverage by viewModel.weeklyAverage.collectAsState()
+    val last7Days by viewModel.last7DaysNet.collectAsState()
+    val weeklyAverage by viewModel.weeklyAverageNet.collectAsState()
     val targetCalories by viewModel.getTargetCalories.collectAsState()
     
     Scaffold(
@@ -115,12 +126,22 @@ fun AnalyticsScreen(
                                     fontWeight = FontWeight.Bold
                                 )
                             }
-                            Icon(
-                                Icons.Default.TrendingUp,
-                                contentDescription = null,
-                                modifier = Modifier.size(48.dp),
-                                tint = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
+                            Box(
+                                modifier = Modifier.size(48.dp)
+                                    .background(
+                                        color = if (weeklyAverage > targetCalories) Color(0x80B77676)
+                                        else Color(0x807FC382),
+                                        shape = RoundedCornerShape(12.dp)
+                                    )
+                            ) {
+                                Icon(
+                                    if (weeklyAverage > targetCalories) Icons.Default.TrendingDown else Icons.Default.TrendingUp,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(48.dp),
+                                    tint = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            }
+
                         }
                     }
                 }
@@ -128,7 +149,7 @@ fun AnalyticsScreen(
             
             // Trend Chart
             Text(
-                "Last 7 Days",
+                "Last 7 Days kcal/day",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )
@@ -170,7 +191,7 @@ fun AnalyticsScreen(
             )
             
             last7Days.reversed().forEach { day ->
-                DailyCalorieRow(day)
+                DailyCalorieRow(day, targetCalories)
             }
         }
     }
@@ -178,11 +199,26 @@ fun AnalyticsScreen(
 
 @Composable
 fun CalorieTrendChart(
-    data: List<DailyCalories>,
+    data: List<DailyNetCalories>,
     targetCalorie: Int,
     modifier: Modifier = Modifier
 ) {
     val primaryColor = MaterialTheme.colorScheme.primary
+
+    var startAnimation by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        startAnimation = true
+    }
+
+    val animationProgress by animateFloatAsState(
+        targetValue = if (startAnimation) 1f else 0f,
+        animationSpec = tween(
+            durationMillis = 1600,
+            easing = FastOutSlowInEasing
+        ),
+        label = "chart_animation"
+    )
     
     Card(
         modifier = modifier,
@@ -204,29 +240,49 @@ fun CalorieTrendChart(
                     .fillMaxSize()
                     .padding(16.dp)
             ) {
-                val maxDataValue = data.maxOfOrNull { it.totalKcal }?.toFloat() ?: 0f
+                val maxDataValue = data.maxOfOrNull { it.netKcal }?.toFloat() ?: 0f
                 val maxValue = maxOf(maxDataValue, targetCalorie.toFloat()).coerceAtLeast(1f)
                 val width = size.width
                 val height = size.height
+                //  chart padding
+
+                val topPadding = 32.dp.toPx()
+                val labelPadding  = 32.dp.toPx()
+                val chartBottom = height - labelPadding  // bottom of the drawable chart area
+                val chartHeight = chartBottom - topPadding
+
                 val spacing = width / data.size
                 val barWidth = spacing * 0.6f
 
+                // Grids
+                val numberOfGridLines = 4
+                val gridColor = Color.Gray.copy(alpha = 0.35f)
+                for (i in 0..numberOfGridLines) {
+                    val y = chartBottom - i * (chartHeight / numberOfGridLines)
+                    drawLine(
+                        color = gridColor,
+                        start = Offset(0f, y),
+                        end = Offset(width, y),
+                        strokeWidth = 1.dp.toPx()
+                    )
+                }
                 
                 // Draw bars
                 data.forEachIndexed { index, daily ->
-                    val barHeight = (daily.totalKcal / maxValue) * height * 0.8f
+                    val fullBarHeight = (daily.netKcal / maxValue) * chartHeight
+                    val barHeight = fullBarHeight * animationProgress
                     val centerX = index * spacing + spacing / 2f
                     val x = centerX - barWidth / 2f
-//                    val x = index * (width / data.size) + barWidth / 2
-                    val y = height - barHeight
+                    val y = chartBottom - barHeight
 
-                    drawRect(
-                        color = if (daily.totalKcal < targetCalorie)
+                    drawRoundRect(
+                        color = if (daily.netKcal < targetCalorie)
                             Color(0xFF80C583)
                         else
                             Color(0xFFB87777),
                         topLeft = Offset(x, y),
-                        size = Size(barWidth, barHeight)
+                        size = Size(barWidth, barHeight),
+                        cornerRadius = CornerRadius(12f, 12f)
                     )
 
                     // Draw text below bar
@@ -235,16 +291,17 @@ fun CalorieTrendChart(
                     )
 
                     // date
+                    val textY = height - labelPadding / 2f - dateLayoutResult.size.height / 2f
                     drawText(
                         dateLayoutResult,
                         topLeft = Offset(
                             x + (barWidth - dateLayoutResult.size.width) / 2f,
-                            size.height + 4f // small spacing below bar
+                            textY // small spacing below bar
                         ),
                         color = graphTextColor
                     )
                     val deviationPercent = targetCalorie.takeIf { it != 0 }
-                        ?.let { ((daily.totalKcal - it).toFloat() / it) * 100f }
+                        ?.let { ((daily.netKcal - it).toFloat() / it) * 100f }
                         ?: 0f
 
                     val formattedDeviation =
@@ -255,7 +312,11 @@ fun CalorieTrendChart(
                         }
 
                     val deviationLayoutResult = textMeasurer.measure(
-                        text = formattedDeviation
+                        text = formattedDeviation,
+                        style = TextStyle(
+                            color = primaryColor,
+                            fontWeight = FontWeight.Bold
+                        )
                     )
 
                     // deviation
@@ -263,65 +324,124 @@ fun CalorieTrendChart(
                         deviationLayoutResult,
                         topLeft = Offset(
                             x + (barWidth - deviationLayoutResult.size.width) / 2f, // center text
-                            y - deviationLayoutResult.size.height - 8f // move above bar with spacing
+                            y - deviationLayoutResult.size.height - 10f // move above bar with spacing
                         )
                     )
 
                 }
-                
+
+
                 // Draw trend line
                 if (data.size > 1) {
                     val path = Path()
-                    data.forEachIndexed { index, daily ->
+                    val points = data.mapIndexed { index, daily ->
                         val centerX = index * spacing + spacing / 2f
-//                        val x = index * (width / (data.size - 1))
-                        val y = height - (daily.totalKcal / maxValue) * height * 0.8f
-                        
-                        if (index == 0) {
-                            path.moveTo(centerX, y)
-                        } else {
-                            path.lineTo(centerX, y)
-                        }
+                        val y = chartBottom - (daily.netKcal / maxValue) * chartHeight
+                        Offset(centerX, y)
                     }
-                    
+
+
+                    path.moveTo(points.first().x, points.first().y)
+                    drawCircle(
+                        color = primaryColor,
+                        radius = 5.dp.toPx(),
+                        center = Offset(points.first().x, points.first().y)
+                    )
+
+                    for (i in 1 until points.size) {
+                        val prev = points[i - 1]
+                        val current = points[i]
+
+                        val controlX = (prev.x + current.x) / 2f
+
+                        path.cubicTo(
+                            controlX, prev.y,   // control point 1
+                            controlX, current.y,// control point 2
+                            current.x, current.y
+                        )
+
+                        drawCircle(
+                            color = primaryColor,
+                            radius = 5.dp.toPx(),
+                            center = Offset(current.x, current.y)
+                        )
+                    }
+                    val pathLength = 1200f
+                    val pathEffect = PathEffect.dashPathEffect(
+                        floatArrayOf(pathLength * animationProgress, pathLength),
+                        0f
+                    )
+
                     drawPath(
                         path = path,
-                        color = primaryColor.copy(alpha = 0.5f),
-                        style = Stroke(width = 3.dp.toPx())
+                        color = primaryColor,
+                        style = Stroke(
+                            width = 4.dp.toPx(),
+                            cap = StrokeCap.Round,
+                            pathEffect = pathEffect
+                        )
                     )
+
+
                 }
 
                 // Draw Goal line
                 if (true){
                     val path = Path()
                     val x0 = 0f
-                    val y0 = height - (targetCalorie / maxValue) * height * 0.8f
+                    val goalY = chartBottom - (targetCalorie / maxValue) * chartHeight
 
-                    val x1 = width
-                    val y1 = y0
+                    val x1 = width * animationProgress
 
-                    path.moveTo(x0,y0)
-                    path.lineTo(x1,y1)
+                    path.moveTo(x0,goalY)
+                    path.lineTo(x1,goalY)
 
                     drawPath(
                         path = path,
                         color = primaryColor.copy(alpha = 0.5f),
                         style = Stroke(
-                            width = 3.dp.toPx(),
+                            width = 2.dp.toPx(),
                             pathEffect = PathEffect.dashPathEffect(
-                                floatArrayOf(10f, 10f), // [dash length, gap length] in pixels
+                                floatArrayOf(18f, 12f), // [dash length, gap length] in pixels
                                 0f
                             )
                         )
                     )
+
+                    val goalLabel = "Goal"
+                    val goalTextLayout = textMeasurer.measure(goalLabel)
+
+                    // Calculate centered position
+                    val textX = (width - goalTextLayout.size.width) / 2f
+                    val textY = goalY - goalTextLayout.size.height - 8f // 8px above line
+
+                    // Draw pill background
+                    drawRoundRect(
+                        color = primaryColor.copy(alpha = 0.1f),
+                        topLeft = Offset(textX - 8f, textY - 4f), // add padding around text
+                        size = Size(
+                            goalTextLayout.size.width + 16f,
+                            goalTextLayout.size.height + 8f
+                        ),
+                        cornerRadius = CornerRadius(12f, 12f)
+                    )
+
+                    // Draw text on top
+                    drawText(
+                        goalTextLayout,
+                        topLeft = Offset(textX, textY),
+                        color = primaryColor
+                    )
                 }
+
+
             }
         }
     }
 }
 
 @Composable
-fun DailyCalorieRow(day: DailyCalories) {
+fun DailyCalorieRow(day: DailyNetCalories, targetCalories: Int) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(8.dp)
@@ -335,14 +455,26 @@ fun DailyCalorieRow(day: DailyCalories) {
         ) {
             Text(
                 day.day,
-                style = MaterialTheme.typography.bodyMedium
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.weight(1f)
             )
-            Text(
-                "${day.totalKcal} kcal",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.primary
-            )
+            Box(
+                modifier = Modifier.wrapContentWidth()
+                    .background(
+                        color = if (day.netKcal > targetCalories) Color(0x80B77676)
+                        else Color.Transparent,
+                        shape = RoundedCornerShape(16.dp)
+                    ).padding(horizontal = 12.dp, vertical = 6.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    "${day.netKcal} kcal",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+
         }
     }
 }

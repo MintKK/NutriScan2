@@ -40,11 +40,12 @@ fun DashboardScreen(
     onFeedClick: () -> Unit,
     viewModel: DashboardViewModel = hiltViewModel()
 ) {
-    val todayCalories by viewModel.todayCalories.collectAsState()
+//    val todayCalories by viewModel.todayCalories.collectAsState()
+    val netCalories by viewModel.netCalories.collectAsState()
     val calorieGoal by viewModel.calorieGoal.collectAsState()
     val todayMacros by viewModel.todayMacros.collectAsState()
     val todayMeals by viewModel.todayMeals.collectAsState()
-    val weeklyAverage by viewModel.weeklyAverage.collectAsState()
+    val weeklyAverage by viewModel.weeklyAverageNet.collectAsState()
     val liveSteps by viewModel.liveSteps.collectAsState()
     val isStepTrackingActive by viewModel.isStepTrackingActive.collectAsState()
     
@@ -77,7 +78,8 @@ fun DashboardScreen(
                 // Calorie Progress Ring
                 item {
                     CalorieProgressCard(
-                        consumed = todayCalories,
+//                        consumed = todayCalories,
+                        consumed = netCalories.toInt(),
                         goal = calorieGoal,
                         macros = todayMacros,
                         onAnalyticsClick

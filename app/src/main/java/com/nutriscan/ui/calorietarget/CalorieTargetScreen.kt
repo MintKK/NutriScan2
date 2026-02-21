@@ -10,11 +10,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Female
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.Male
 import androidx.compose.material.icons.filled.Man
-import androidx.compose.material.icons.filled.Man3
-import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -71,6 +70,17 @@ fun CalorieTargetScreen(
             CalculateBMICalorie(!isFemale, weightString, heightString, ageString)
         }
     }
+    // Whenever user change parameters, clear whatever custom they have (for saving to repo logic)
+    LaunchedEffect(recommendedCalories) {
+        customCaloriesInput = ""
+    }
+
+    // Fix to show what user is typing when entering custom kcal
+    LaunchedEffect(recommendedCalories) {
+        if (customCaloriesInput.isEmpty()) {
+            customCaloriesInput = recommendedCalories.toString()
+        }
+    }
 
     LaunchedEffect(isFemaleRepo, weight, height, age) {
         isFemale = isFemaleRepo
@@ -78,17 +88,6 @@ fun CalorieTargetScreen(
         heightString = height.toString()
         ageString = age.toString()
     }
-
-    // Auto calcs
-//    LaunchedEffect(isFemale, weightString, heightString, ageString) {
-//        customCaloriesString = CalculateBMICalorie(
-//            !isFemale,
-//            weightString,
-//            heightString,
-//            ageString
-//        )
-//        targetSaved = false
-//    }
 
     Scaffold(
         topBar = {
@@ -122,30 +121,41 @@ fun CalorieTargetScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
 
-                    Card(
+                    // Top Row
+                    Row(
                         modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(20.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column {
+                        Card(
+                            modifier = Modifier.weight(1f).weight(1f).aspectRatio(1f),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                            shape = RoundedCornerShape(12.dp)
+                        ){
+                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Icon(
+                                    if (isFemale) Icons.Default.Female else Icons.Default.Male,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(48.dp),
+                                    tint = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+
                                 Text(
                                     "Gender",
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Bold)
+
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text(
                                         "Male",
                                         style = MaterialTheme.typography.bodyMedium,
-                                        modifier = Modifier.padding(horizontal = 20.dp)
+                                        modifier = Modifier.padding(horizontal = 5.dp)
                                     )
                                     Switch(
                                         checked = isFemale,
@@ -156,55 +166,70 @@ fun CalorieTargetScreen(
                                     Text(
                                         "Female",
                                         style = MaterialTheme.typography.bodyMedium,
-                                        modifier = Modifier.padding(horizontal = 20.dp)
+                                        modifier = Modifier.padding(horizontal = 2.dp)
                                     )
                                 }
-
                             }
-                            Icon(
-                                Icons.Default.Male,
-                                contentDescription = null,
-                                modifier = Modifier.size(48.dp),
-                                tint = MaterialTheme.colorScheme.onPrimaryContainer
+                            }
+                        }
+
+                        Card(
+                            modifier = Modifier.weight(1f).aspectRatio(1f),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                            shape = RoundedCornerShape(12.dp),
+                        ) {
+                            DisplayInput(
+                                modifier = Modifier.fillMaxSize(),
+                                weightString,
+                                { weightString = it;
+                                    targetSaved = false },
+                                "Weight (kg)",
+                                Icons.Default.FitnessCenter
                             )
                         }
                     }
 
-                    // WEIGHT
-                    Card() {
-                        DisplayInput(
-                            Modifier,
-                            weightString,
-                            { weightString = it;
-                                targetSaved = false },
-                            "Weight (kg)",
-                            Icons.Default.FitnessCenter
-                        )
-                    }
+                    // Bot Row
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Card(
+                            modifier = Modifier.weight(1f).aspectRatio(1f),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            // HEIGHT
+                            DisplayInput(
+                                Modifier,
+                                heightString,
+                                { heightString = it;
+                                    targetSaved = false },
+                                "Height (cm)",
+                                Icons.Default.Man
+                            )
+                        }
 
-                    // HEIGHT
-                    Card () {
-                        DisplayInput(
-                            Modifier,
-                            heightString,
-                            { heightString = it;
-                                targetSaved = false },
-                            "Height (cm)",
-                            Icons.Default.Man
-                        )
-                    }
+                        Card(
+                            modifier = Modifier.weight(1f).aspectRatio(1f),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            // AGE
+                            DisplayInput(
+                                Modifier,
+                                ageString,
+                                {
+                                    ageString = it;
+                                    targetSaved = false },
+                                "Age",
+                                Icons.Default.CalendarMonth
+                            )
+                        }
 
-                    // AGE
-                    Card() {
-                        DisplayInput(
-                            Modifier,
-                            ageString,
-                            {
-                                ageString = it;
-                                targetSaved = false },
-                            "Age",
-                            Icons.Default.CalendarMonth
-                        )
                     }
                 }
 
@@ -217,13 +242,13 @@ fun CalorieTargetScreen(
                 fontWeight = FontWeight.Bold
             )
 
-
             OutlinedTextField(
-                value = if (customCaloriesInput.isEmpty()) recommendedCalories else customCaloriesInput,
+                value = customCaloriesInput,
                 onValueChange = { input ->
                     customCaloriesInput = input.filter { it.isDigit() }
                     targetSaved = false
                 },
+
                 label = { Text("Custom (kcal)") },
                 keyboardOptions = KeyboardOptions(
                     keyboardType = KeyboardType.Number,
@@ -239,7 +264,8 @@ fun CalorieTargetScreen(
             ) {
                 Button(
                     onClick = {
-                        UpdateDataStore(viewModel, recommendedCalories,isFemale, weightString,heightString,ageString)
+                        // Saves custom if user edited themselves, else use the autocalc from setting parameters (gender,age..)
+                        UpdateDataStore(viewModel, if (customCaloriesInput.isEmpty()) recommendedCalories else customCaloriesInput,isFemale, weightString,heightString,ageString)
                         targetSaved = true
                     },
                     enabled = !targetSaved
@@ -299,36 +325,42 @@ fun CalculateBMICalorie(isMale:Boolean, weightStr:String, heightStr:String, ageS
 
 @Composable
 fun DisplayInput(
-    modifier: Modifier,
+    modifier: Modifier = Modifier,
     displayString:String,
     onValueChange: (String) -> Unit,
     label:String,
     icon: ImageVector
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(20.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column {
+
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Column(
+            modifier = modifier,
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Icon(
+                icon,
+                contentDescription = null,
+                modifier = Modifier.size(48.dp),
+                tint = MaterialTheme.colorScheme.onPrimaryContainer
+            )
+            Text(
+                label,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Bold)
+
             OutlinedTextField(
+                modifier = Modifier.padding(horizontal = 10.dp),
                 value = displayString,
                 onValueChange = { input ->
-                    onValueChange(input.filter { it.isDigit() })},
-                label = { Text(label) },
+                    onValueChange(input.filter { it.isDigit() })
+                },
+                label = { Text("") },
                 keyboardOptions = KeyboardOptions(
                     keyboardType = KeyboardType.Number,
                     imeAction = ImeAction.Done
                 )
             )
         }
-        Icon(
-            icon,
-            contentDescription = null,
-            modifier = Modifier.size(48.dp),
-            tint = MaterialTheme.colorScheme.onPrimaryContainer
-        )
     }
 }
