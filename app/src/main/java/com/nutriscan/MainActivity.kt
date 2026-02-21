@@ -20,6 +20,7 @@ class MainActivity : ComponentActivity() {
 
         val prefs = getSharedPreferences("app_prefs", MODE_PRIVATE)
         val questionnaireDone = prefs.getBoolean("questionnaire_done", false)
+        val questionnaireSkipped = prefs.getBoolean("questionnaire_skipped", false)
 
         setContent {
             NutriScanTheme {
@@ -31,7 +32,7 @@ class MainActivity : ComponentActivity() {
                     NutriScanNavHost(
                         navController = navController,
                         prefs = prefs,
-                        questionnaireDone = questionnaireDone
+                        showQuestionnaire = !questionnaireDone && !questionnaireSkipped
                     )
                 }
             }

@@ -58,11 +58,11 @@ sealed class Screen(val route: String) {
 fun NutriScanNavHost(
     navController: NavHostController,
     prefs: SharedPreferences,
-    questionnaireDone: Boolean = false
+    showQuestionnaire: Boolean = false
 ) {
     NavHost(
         navController = navController,
-        startDestination = if (questionnaireDone) Screen.Dashboard.route else Screen.Welcome.route
+        startDestination = if (showQuestionnaire) Screen.Welcome.route else Screen.Dashboard.route
     ) {
         composable(Screen.Welcome.route) {
             WelcomeScreen(
@@ -72,6 +72,7 @@ fun NutriScanNavHost(
                     }
                 },
                 onSkip = {
+                    prefs.edit().putBoolean("questionnaire_skipped", true).apply()
                     navController.navigate(Screen.Dashboard.route) {
                         popUpTo(Screen.Welcome.route) { inclusive = true }
                     }
@@ -110,6 +111,7 @@ fun NutriScanNavHost(
                 onAnalyticsClick = { navController.navigate(Screen.Analytics.route) },
                 onCaloriesBurnedClick = { navController.navigate(Screen.CaloriesBurned.route) },
                 onFeedClick = { navController.navigate(Screen.Feed.route) },
+                onRetakeQuestionnaire = { navController.navigate(Screen.Questionnaire.route) },
                 onFoodDiaryClick = { navController.navigate(Screen.FoodDiary.route) }
             )
         }
