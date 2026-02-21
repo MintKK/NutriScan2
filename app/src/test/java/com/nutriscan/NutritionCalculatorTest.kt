@@ -177,4 +177,36 @@ class NutritionCalculatorTest {
 
         assertTrue("Male BMR should be higher than female", maleCals > femaleCals)
     }
+
+    // ==================== Input Validation ====================
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `zero weight throws IllegalArgumentException`() {
+        val profile = UserProfile(Goal.WEIGHT_MAINTENANCE, Gender.MALE, 25, 0f, 175f, ActivityLevel.SEDENTARY)
+        NutritionCalculator.calculateTargets(profile)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `negative weight throws IllegalArgumentException`() {
+        val profile = UserProfile(Goal.WEIGHT_MAINTENANCE, Gender.MALE, 25, -10f, 175f, ActivityLevel.SEDENTARY)
+        NutritionCalculator.calculateTargets(profile)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `zero height throws IllegalArgumentException`() {
+        val profile = UserProfile(Goal.WEIGHT_MAINTENANCE, Gender.MALE, 25, 70f, 0f, ActivityLevel.SEDENTARY)
+        NutritionCalculator.calculateTargets(profile)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `zero age throws IllegalArgumentException`() {
+        val profile = UserProfile(Goal.WEIGHT_MAINTENANCE, Gender.MALE, 0, 70f, 175f, ActivityLevel.SEDENTARY)
+        NutritionCalculator.calculateTargets(profile)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `age over 150 throws IllegalArgumentException`() {
+        val profile = UserProfile(Goal.WEIGHT_MAINTENANCE, Gender.MALE, 200, 70f, 175f, ActivityLevel.SEDENTARY)
+        NutritionCalculator.calculateTargets(profile)
+    }
 }

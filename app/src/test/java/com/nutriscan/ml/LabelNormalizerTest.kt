@@ -54,9 +54,10 @@ class LabelNormalizerTest {
         assertEquals("potato", LabelNormalizer.normalize("potatoes"))
         // -ves → -f
         assertEquals("leaf", LabelNormalizer.normalize("leaves"))
-        // Note: "apples" matches "es" rule first (appl + "" = "appl")
-        // This is a known limitation of the simple plural rules
-        assertEquals("appl", LabelNormalizer.normalize("apples"))
+        // consonant + "les" → drop trailing "s" only
+        assertEquals("apple", LabelNormalizer.normalize("apples"))
+        assertEquals("noodle", LabelNormalizer.normalize("noodles"))
+        assertEquals("pickle", LabelNormalizer.normalize("pickles"))
     }
 
     @Test
@@ -68,8 +69,8 @@ class LabelNormalizerTest {
 
     @Test
     fun `normalize handles compound labels`() {
-        // "Apples" → singularized via "es" rule → "appl"
-        assertEquals("granny smith appl", LabelNormalizer.normalize("Granny Smith Apples"))
+        // "Apples" → consonant+les guard → "apple"
+        assertEquals("granny smith apple", LabelNormalizer.normalize("Granny Smith Apples"))
         // "Food" is a stopword, "Cake" stays
         assertEquals("angel cake", LabelNormalizer.normalize("Angel Food Cake"))
         // "Fresh" and "Organic" are stopwords, "Bananas" → "banana" via "s" rule  

@@ -8,7 +8,8 @@ import com.nutriscan.data.local.dao.WaterLogDao
 import com.nutriscan.data.local.entity.WaterLog
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
-import java.util.Calendar
+import java.time.LocalDate
+import java.time.ZoneId
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -23,13 +24,10 @@ class WaterRepository @Inject constructor(
     }
     
     private fun todayStartMillis(): Long {
-        val cal = Calendar.getInstance().apply {
-            set(Calendar.HOUR_OF_DAY, 0)
-            set(Calendar.MINUTE, 0)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
-        }
-        return cal.timeInMillis
+        return LocalDate.now()
+            .atStartOfDay(ZoneId.systemDefault())
+            .toInstant()
+            .toEpochMilli()
     }
     
     suspend fun logWater(amountMl: Int) {
