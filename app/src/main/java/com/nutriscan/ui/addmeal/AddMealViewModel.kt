@@ -359,7 +359,7 @@ class AddMealViewModel @Inject constructor(
     /**
      * Show manual search screen.
      */
-    fun showManualSearch() {
+    fun showManualSearch(query: String? = null) {
         _uiState.update { it.copy(
             showManualSearch = true,
             showCandidateSelection = false,
@@ -367,7 +367,8 @@ class AddMealViewModel @Inject constructor(
             showCamera = false,
             showGallery = false,
             showBarcode = false,
-            showOCRScanner = false
+            showOCRScanner = false,
+            searchHint = query ?: it.searchHint
         ) }
     }
     

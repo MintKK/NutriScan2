@@ -1,10 +1,17 @@
 package com.nutriscan.data.repository
 
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.emptyPreferences
+import androidx.datastore.preferences.core.intPreferencesKey
 import com.nutriscan.data.local.dao.StepLogDao
 import com.nutriscan.data.local.entity.StepLog
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
 import java.text.SimpleDateFormat
+import java.time.LocalDate
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
@@ -17,10 +24,27 @@ import javax.inject.Singleton
  */
 @Singleton
 class StepRepository @Inject constructor(
-    private val stepLogDao: StepLogDao
+    private val stepLogDao: StepLogDao,
+    private val dataStore: DataStore<Preferences>
 ) {
 
     private val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+
+    private object Keys {
+        val STEP_GOAL = intPreferencesKey("step_goal")
+    }
+
+    /** Observe the user's daily step goal. */
+    fun getStepGoal(): Flow<Int> {
+        return dataStore.data
+            .catch { emit(emptyPreferences()) }
+            .map { prefs -> prefs[Keys.STEP_GOAL] ?: 10000 }
+    }
+
+    /** Save a new daily step goal. */
+    suspend fun saveStepGoal(goal: Int) {
+        dataStore.edit { prefs -> prefs[Keys.STEP_GOAL] = goal }
+    }
 
     // ============ QUERIES ============
 

@@ -59,6 +59,9 @@ class DashboardViewModel @Inject constructor(
      */
     val todaySteps: StateFlow<Int> = stepRepository.getTodaySteps()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
+    val stepGoal: StateFlow<Int> = stepRepository.getStepGoal()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 10000)
     
     /**
      * Live step count from the running foreground service.
@@ -89,6 +92,12 @@ class DashboardViewModel @Inject constructor(
     
     fun setCalorieGoal(goal: Int) {
         _calorieGoal.value = goal
+    }
+
+    fun setStepGoal(goal: Int) {
+        viewModelScope.launch {
+            stepRepository.saveStepGoal(goal)
+        }
     }
     
     fun deleteMeal(id: Int) {
@@ -146,13 +155,24 @@ class DashboardViewModel @Inject constructor(
     val waterGoalMl: StateFlow<Int> = waterRepository.getWaterGoal()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 2000)
     
+    // ============ PERSONALIZED MACRO TARGETS ============
+    
+    val targetProtein: StateFlow<Float> = mealRepository.getTargetProtein()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0f)
+    
+    val targetCarbs: StateFlow<Float> = mealRepository.getTargetCarbs()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0f)
+    
+    val targetFat: StateFlow<Float> = mealRepository.getTargetFat()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0f)
+    
     fun addWater(amountMl: Int) {
         viewModelScope.launch {
             waterRepository.logWater(amountMl)
         }
     }
     
-    fun undoLastWater() {
+    fun undoWater() {
         viewModelScope.launch {
             waterRepository.undoLastEntry()
         }
@@ -172,9 +192,13 @@ class DashboardViewModel @Inject constructor(
     fun refreshAchievements() {
         viewModelScope.launch {
             val waterGoal = waterGoalMl.value
-            val calorieGoalVal = calorieGoal.value
-            // Rough protein estimate: ~25% of calories / 4 kcal per gram
-            val proteinGoal = if (calorieGoalVal > 0) (calorieGoalVal * 0.25f / 4f) else 0f
+            // Use personalized protein target if available, otherwise fall back to 25% of calories
+            val proteinGoal = targetProtein.value.let { p ->
+                if (p > 0) p else {
+                    val cal = calorieGoal.value
+                    if (cal > 0) (cal * 0.25f / 4f) else 0f
+                }
+            }
             _achievementState.value = achievementRepository.getAchievementState(
                 waterGoalMl = waterGoal,
                 proteinGoalG = proteinGoal
@@ -194,7 +218,10 @@ class DashboardViewModel @Inject constructor(
                 calorieGoal = calorieGoal.value,
                 currentCalories = todayCalories.value,
                 currentWaterMl = todayWaterMl.value,
-                waterGoalMl = waterGoalMl.value
+                waterGoalMl = waterGoalMl.value,
+                proteinGoalG = targetProtein.value,
+                carbGoalG = targetCarbs.value,
+                fatGoalG = targetFat.value
             )
         }
     }

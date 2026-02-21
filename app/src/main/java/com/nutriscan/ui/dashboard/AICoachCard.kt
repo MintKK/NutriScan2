@@ -38,7 +38,10 @@ private val CoachPurpleLight = Color(0xFFB388FF)
 private val CoachGradientStart = Color(0xFFF3E5F5)
 
 @Composable
-fun AICoachCard(insights: List<CoachInsight>) {
+fun AICoachCard(
+    insights: List<CoachInsight>,
+    onActionClick: (String, String) -> Unit = { _, _ -> }
+) {
     if (insights.isEmpty()) return
 
     Card(
@@ -83,6 +86,7 @@ fun AICoachCard(insights: List<CoachInsight>) {
                 // Single insight — show inline
                 InsightBubble(
                     insight = insights.first(),
+                    onActionClick = onActionClick,
                     modifier = Modifier.padding(16.dp)
                 )
             } else {
@@ -94,6 +98,7 @@ fun AICoachCard(insights: List<CoachInsight>) {
                     items(insights) { insight ->
                         InsightBubble(
                             insight = insight,
+                            onActionClick = onActionClick,
                             modifier = Modifier.width(280.dp)
                         )
                     }
@@ -104,7 +109,11 @@ fun AICoachCard(insights: List<CoachInsight>) {
 }
 
 @Composable
-private fun InsightBubble(insight: CoachInsight, modifier: Modifier = Modifier) {
+private fun InsightBubble(
+    insight: CoachInsight,
+    onActionClick: (String, String) -> Unit = { _, _ -> },
+    modifier: Modifier = Modifier
+) {
     val bubbleColor = when (insight.type) {
         InsightType.SUCCESS -> Color(0xFFE8F5E9)
         InsightType.WARNING -> Color(0xFFFFF3E0)
@@ -142,12 +151,29 @@ private fun InsightBubble(insight: CoachInsight, modifier: Modifier = Modifier) 
 
             Spacer(Modifier.width(10.dp))
 
-            Text(
-                text = insight.message,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.weight(1f)
-            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = insight.message,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                
+                if (insight.actionLabel != null && insight.actionData != null) {
+                    Spacer(Modifier.height(8.dp))
+                    androidx.compose.material3.TextButton(
+                        onClick = { onActionClick(insight.actionLabel, insight.actionData) },
+                        contentPadding = PaddingValues(0.dp),
+                        modifier = Modifier.height(32.dp)
+                    ) {
+                        Text(
+                            insight.actionLabel,
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = accentColor
+                        )
+                    }
+                }
+            }
         }
     }
 }

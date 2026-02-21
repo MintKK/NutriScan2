@@ -62,11 +62,19 @@ import java.util.concurrent.Executors
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddMealScreen(
+    initialSearchQuery: String? = null,
     onMealLogged: () -> Unit,
     onBack: () -> Unit,
     viewModel: AddMealViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    
+    // Handle initial search query if provided (e.g. from AI Coach swap suggestion)
+    LaunchedEffect(initialSearchQuery) {
+        if (!initialSearchQuery.isNullOrBlank()) {
+            viewModel.showManualSearch(initialSearchQuery)
+        }
+    }
     
     // Handle meal logged
     LaunchedEffect(uiState.mealLogged) {

@@ -13,7 +13,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.Add
@@ -39,6 +42,8 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.LaunchedEffect
@@ -52,7 +57,7 @@ import java.util.*
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(
-    onAddMealClick: () -> Unit,
+    onAddMealClick: (String?) -> Unit,
     onAnalyticsClick: () -> Unit,
     onCaloriesBurnedClick: () -> Unit = {},
     onFeedClick: () -> Unit,
@@ -60,6 +65,8 @@ fun DashboardScreen(
     onFoodDiaryClick: () -> Unit = {},
     viewModel: DashboardViewModel = hiltViewModel()
 ) {
+    var showWaterDialog by remember { mutableStateOf(false) }
+    var customWaterAmount by remember { mutableStateOf("") }
 //    val todayCalories by viewModel.todayCalories.collectAsState()
     val netCalories by viewModel.netCalories.collectAsState()
     val calorieGoal by viewModel.calorieGoal.collectAsState()
@@ -70,6 +77,7 @@ fun DashboardScreen(
     val isStepTrackingActive by viewModel.isStepTrackingActive.collectAsState()
     val todayWaterMl by viewModel.todayWaterMl.collectAsState()
     val waterGoalMl by viewModel.waterGoalMl.collectAsState()
+    val stepGoal by viewModel.stepGoal.collectAsState()
     val achievementState by viewModel.achievementState.collectAsState()
     val coachInsights by viewModel.coachInsights.collectAsState()
     
@@ -124,7 +132,7 @@ fun DashboardScreen(
             },
             floatingActionButton = {
                 FloatingActionButton(
-                    onClick = onAddMealClick,
+                    onClick = { onAddMealClick(null) },
                     containerColor = MaterialTheme.colorScheme.primary
                 ) {
                     Icon(Icons.Default.Add, contentDescription = "Add Meal")
@@ -135,13 +143,19 @@ fun DashboardScreen(
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(padding)
                         .padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     // AI Coach Card (Daily Briefing)
                     item {
-                        AICoachCard(insights = coachInsights)
+                        AICoachCard(
+                            insights = coachInsights,
+                            onActionClick = { label, data ->
+                                if (label == "Swap it") {
+                                    onAddMealClick(data)
+                                }
+                            }
+                        )
                     }
                     
                     // Calorie Progress Ring
@@ -164,8 +178,13 @@ fun DashboardScreen(
                     item {
                         CaloriesBurnedQuickCard(
                             steps = liveSteps,
+                            goal = stepGoal,
                             isTracking = isStepTrackingActive,
-                            onClick = onCaloriesBurnedClick
+                            onClick = onCaloriesBurnedClick,
+                            onLongClick = { 
+                                // Simple goal editing via long press or we can add a setting
+                                viewModel.setStepGoal(if (stepGoal == 10000) 5000 else 10000) 
+                            }
                         )
                     }
 
@@ -181,7 +200,8 @@ fun DashboardScreen(
                             goalMl = waterGoalMl,
                             onAdd250 = { viewModel.addWater(250) },
                             onAdd500 = { viewModel.addWater(500) },
-                            onUndo = { viewModel.undoLastWater() }
+                            onAddCustom = { showWaterDialog = true },
+                            onUndo = { viewModel.undoWater() }
                         )
                     }
 
@@ -206,7 +226,7 @@ fun DashboardScreen(
                     // Meal List
                     if (todayMeals.isEmpty()) {
                         item {
-                            EmptyMealsCard(onAddMealClick = onAddMealClick)
+                            EmptyMealsCard(onAddMealClick = { onAddMealClick(null) })
                         }
                     } else {
                         items(todayMeals, key = { it.id }) { meal ->
@@ -223,6 +243,48 @@ fun DashboardScreen(
                     modifier = Modifier.align(Alignment.BottomStart).padding(16.dp)
                 ) {
                     Icon(Icons.Default.List, contentDescription = "Feed")
+                }
+
+                // Custom Water Dialog
+                if (showWaterDialog) {
+                    AlertDialog(
+                        onDismissRequest = { showWaterDialog = false },
+                        title = { Text("Custom Amount") },
+                        text = {
+                            Column {
+                                Text("How much water did you drink?")
+                                Spacer(modifier = Modifier.height(8.dp))
+                                OutlinedTextField(
+                                    value = customWaterAmount,
+                                    onValueChange = { customWaterAmount = it },
+                                    label = { Text("Amount (ml)") },
+                                    keyboardOptions = KeyboardOptions(
+                                        keyboardType = KeyboardType.Number,
+                                        imeAction = ImeAction.Done
+                                    ),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+                        },
+                        confirmButton = {
+                            Button(
+                                onClick = {
+                                    customWaterAmount.toIntOrNull()?.let {
+                                        viewModel.addWater(it)
+                                        showWaterDialog = false
+                                        customWaterAmount = ""
+                                    }
+                                }
+                            ) {
+                                Text("Add")
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showWaterDialog = false }) {
+                                Text("Cancel")
+                            }
+                        }
+                    )
                 }
             }
         }
@@ -504,13 +566,18 @@ fun MealLogItem(
 @Composable
 fun CaloriesBurnedQuickCard(
     steps: Int,
+    goal: Int,
     isTracking: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onLongClick: () -> Unit = {}
 ) {
+    val progress = if (goal > 0) (steps.toFloat() / goal).coerceIn(0f, 1f) else 0f
+    
     Card(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick),
         colors = CardDefaults.cardColors(
             containerColor = if (isTracking) {
                 Color(0xFF4CAF50).copy(alpha = 0.1f)
@@ -543,11 +610,24 @@ fun CaloriesBurnedQuickCard(
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        if (isTracking) "🚶 ${String.format("%,d", steps)} steps"
+                        if (isTracking) "🚶 ${String.format("%,d", steps)} / ${String.format("%,d", goal)} steps"
                         else "Tap to view activity tracking",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    
+                    if (isTracking) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        LinearProgressIndicator(
+                            progress = progress,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(6.dp)
+                                .clip(RoundedCornerShape(3.dp)),
+                            color = if (progress >= 1f) Color(0xFF4CAF50) else MaterialTheme.colorScheme.primary,
+                            trackColor = MaterialTheme.colorScheme.surfaceVariant
+                        )
+                    }
                 }
             }
             Icon(
@@ -571,6 +651,7 @@ fun WaterTrackerCard(
     goalMl: Int,
     onAdd250: () -> Unit,
     onAdd500: () -> Unit,
+    onAddCustom: () -> Unit,
     onUndo: () -> Unit
 ) {
     val fraction = if (goalMl > 0) (currentMl.toFloat() / goalMl).coerceIn(0f, 1f) else 0f
@@ -751,6 +832,12 @@ fun WaterTrackerCard(
                     modifier = Modifier.weight(1f)
                 ) {
                     Text("+ 500ml")
+                }
+                IconButton(
+                    onClick = onAddCustom,
+                    modifier = Modifier.background(WaterBlue.copy(alpha = 0.1f), CircleShape)
+                ) {
+                    Icon(Icons.Default.Add, "Custom amount", tint = WaterBlue)
                 }
             }
         }

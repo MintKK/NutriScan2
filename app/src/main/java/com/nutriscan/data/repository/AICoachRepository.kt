@@ -17,7 +17,9 @@ enum class InsightType { SUCCESS, INFO, WARNING, TIP }
 data class CoachInsight(
     val emoji: String,
     val message: String,
-    val type: InsightType
+    val type: InsightType,
+    val actionLabel: String? = null,
+    val actionData: String? = null
 )
 
 // ============ REPOSITORY ============
@@ -39,7 +41,10 @@ class AICoachRepository @Inject constructor(
         calorieGoal: Int,
         currentCalories: Int,
         currentWaterMl: Int,
-        waterGoalMl: Int
+        waterGoalMl: Int,
+        proteinGoalG: Float = 0f,
+        carbGoalG: Float = 0f,
+        fatGoalG: Float = 0f
     ): List<CoachInsight> {
         val insights = mutableListOf<CoachInsight>()
         val hour = LocalTime.now().hour
@@ -52,8 +57,8 @@ class AICoachRepository @Inject constructor(
         }
         if (greeting != null) insights.add(greeting)
 
-        // 2. Macro analysis
-        val macroInsight = generateMacroInsight(currentMacros, calorieGoal)
+        // 2. Macro analysis — uses personalized targets if available
+        val macroInsight = generateMacroInsight(currentMacros, calorieGoal, proteinGoalG, carbGoalG, fatGoalG)
         if (macroInsight != null) insights.add(macroInsight)
 
         // 3. Hydration comparison with yesterday
@@ -126,12 +131,18 @@ class AICoachRepository @Inject constructor(
         }
     }
 
-    private fun generateMacroInsight(macros: MacroTotals, calorieGoal: Int): CoachInsight? {
+    private fun generateMacroInsight(
+        macros: MacroTotals,
+        calorieGoal: Int,
+        userProteinGoalG: Float,
+        userCarbGoalG: Float,
+        userFatGoalG: Float
+    ): CoachInsight? {
         if (calorieGoal <= 0) return null
-        // Target: ~25% protein, ~50% carbs, ~25% fat
-        val proteinGoalG = calorieGoal * 0.25f / 4f
-        val carbGoalG = calorieGoal * 0.50f / 4f
-        val fatGoalG = calorieGoal * 0.25f / 9f
+        // Use personalized targets if available, otherwise fall back to generic split
+        val proteinGoalG = if (userProteinGoalG > 0) userProteinGoalG else calorieGoal * 0.25f / 4f
+        val carbGoalG = if (userCarbGoalG > 0) userCarbGoalG else calorieGoal * 0.50f / 4f
+        val fatGoalG = if (userFatGoalG > 0) userFatGoalG else calorieGoal * 0.25f / 9f
 
         val proteinPct = if (proteinGoalG > 0) (macros.protein / proteinGoalG * 100).toInt() else 0
         val carbPct = if (carbGoalG > 0) (macros.carbs / carbGoalG * 100).toInt() else 0
@@ -205,9 +216,15 @@ class AICoachRepository @Inject constructor(
         )
         val longestActive = state.streaks.maxByOrNull { it.currentStreak }
         return if (longestActive != null && longestActive.currentStreak >= 3) {
+            val isNewBest = longestActive.currentStreak >= longestActive.bestStreak && longestActive.currentStreak > 0
+            val message = if (isNewBest) {
+                "🎉 NEW RECORD! You've reached a ${longestActive.currentStreak}-day ${longestActive.label} streak. You're at your all-time best!"
+            } else {
+                "${longestActive.currentStreak}-day ${longestActive.label} streak! Your consistency is paying off — keep going!"
+            }
             CoachInsight(
-                emoji = "🔥",
-                message = "${longestActive.currentStreak}-day ${longestActive.label} streak! Your consistency is paying off — keep going!",
+                emoji = if (isNewBest) "🎊" else "🔥",
+                message = message,
                 type = InsightType.SUCCESS
             )
         } else null
@@ -282,7 +299,9 @@ class AICoachRepository @Inject constructor(
                 return CoachInsight(
                     emoji = "🔄",
                     message = "Try \"${swap.alternative}\" instead — ${swap.reason}",
-                    type = InsightType.TIP
+                    type = InsightType.TIP,
+                    actionLabel = "Swap it",
+                    actionData = swap.alternative
                 )
             }
         }
