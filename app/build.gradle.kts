@@ -91,7 +91,8 @@ dependencies {
     
     // Lifecycle service (for StepCounterService)
     implementation("androidx.lifecycle:lifecycle-service:2.6.2")
-    
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.0")
+
     // Google Play Services — Activity Recognition API
     implementation("com.google.android.gms:play-services-location:21.0.1")
 
@@ -117,6 +118,10 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 
+    // Worker
+    implementation("androidx.work:work-runtime-ktx:2.9.0")
+    implementation("androidx.hilt:hilt-work:1.2.0")
+    ksp("androidx.hilt:hilt-compiler:1.2.0")
 
     // Firebase
     implementation(platform("com.google.firebase:firebase-bom:34.9.0"))

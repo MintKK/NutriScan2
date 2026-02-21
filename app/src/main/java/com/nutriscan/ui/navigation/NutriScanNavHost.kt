@@ -2,6 +2,8 @@ package com.nutriscan.ui.navigation
 
 import android.content.SharedPreferences
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -23,6 +25,7 @@ import com.nutriscan.ui.diary.FoodDiaryScreen
 import com.nutriscan.ui.social.FeedScreen
 import com.nutriscan.ui.social.UserProfileScreen
 import com.nutriscan.ui.social.CreatePostScreen
+import com.nutriscan.ui.social.SearchUsersScreen
 
 /**
  * Navigation routes for the app.
@@ -52,6 +55,7 @@ sealed class Screen(val route: String) {
     object UserProfile : Screen("user_profile/{userID}") {
         fun passUserID(userID: String): String = "user_profile/$userID"
     }
+    object SearchUser : Screen("search_user")
 
     // Auth
     object SignIn : Screen("sign_in")
@@ -195,6 +199,7 @@ fun NutriScanNavHost(
                 onSignOut = {
                     navController.popBackStack(Screen.Dashboard.route, false)
                 },
+                onNavigateToSearch = { navController.navigate(Screen.SearchUser.route) },
                 onBack = { navController.popBackStack() }
             )
         }
@@ -212,6 +217,16 @@ fun NutriScanNavHost(
         composable(Screen.CreatePost.route) {
             CreatePostScreen(
                 onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Screen.SearchUser.route) {
+            SearchUsersScreen(
+                onBack = { navController.popBackStack() },
+                onUserClick = {
+                    userID ->
+                    navController.navigate(Screen.UserProfile.passUserID(userID))
+                }
             )
         }
 

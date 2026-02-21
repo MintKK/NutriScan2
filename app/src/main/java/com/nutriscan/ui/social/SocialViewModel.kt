@@ -34,6 +34,12 @@ class SocialViewModel @Inject constructor(
     private val _feedPosts = MutableStateFlow<List<Post>>(emptyList())
     val feedPosts: StateFlow<List<Post>> = _feedPosts.asStateFlow()
 
+    private val _followingPosts = MutableStateFlow<List<Post>>(emptyList())
+    val followingPosts: StateFlow<List<Post>> = _followingPosts.asStateFlow()
+
+    private val _allPosts = MutableStateFlow<List<Post>>(emptyList())
+    val allPosts: StateFlow<List<Post>> = _allPosts.asStateFlow()
+
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
@@ -103,6 +109,66 @@ class SocialViewModel @Inject constructor(
                 _isLoading.value = false
             }
         }
+    }
+
+    fun loadFollowingFeed() {
+        viewModelScope.launch {
+            val currentUserID = auth.currentUser?.uid
+            if (currentUserID == null) {
+                _error.value = "Please sign in to view following feed"
+                _isLoading.value = false
+
+                return@launch
+            }
+
+            _isLoading.value = true
+            _error.value = null
+
+            try {
+                socialRepository.getFeedPostsRealtime(currentUserID)
+                    .catch {
+                        e ->
+                        _error.value = "Failed to load feed: ${e.message}"
+                        _isLoading.value = false
+                    }
+                    .collect {
+                        posts ->
+                        _followingPosts.value = posts
+                        _isLoading.value = false
+                        _error.value = null
+                    }
+            } catch (e: Exception) {
+                _error.value = "Error loading feed: ${e.message}"
+                _isLoading.value = false
+            }
+        }
+    }
+
+    fun loadAllFeed() {
+        viewModelScope.launch {
+            _isLoading.value = true
+            try {
+                socialRepository.getAllPosts()
+                    .catch {
+                        e ->
+                        _error.value = "Failed to load posts: ${e.message}"
+                        _isLoading.value = false
+                    }
+                    .collect {
+                        posts ->
+                        _allPosts.value = posts
+                        _isLoading.value = false
+                        _error.value = null
+                    }
+            } catch (e: Exception) {
+                _error.value = "Error loading posts: ${e.message}"
+                _isLoading.value = false
+            }
+        }
+    }
+
+    fun updatePostRealtime(postID: String): Flow<Post> {
+        return socialRepository.updatePostRealtime(postID)
     }
 
     fun createPost(

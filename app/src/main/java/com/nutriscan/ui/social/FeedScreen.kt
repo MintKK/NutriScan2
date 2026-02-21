@@ -50,6 +50,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -77,11 +78,15 @@ fun FeedScreen(
     onNavigateToCreatePost: () -> Unit,
     onNavigateToProfile: (String) -> Unit,
     onNavigateToSignIn: () -> Unit,
+    onNavigateToSearch: () -> Unit,
     onSignOut: () -> Unit,
     onBack: () -> Unit,
     viewModel: SocialViewModel = hiltViewModel()
 ) {
-    val posts by viewModel.feedPosts.collectAsState()
+    var selectedTab by remember { mutableStateOf(0) }
+    val followingPosts by viewModel.followingPosts.collectAsState()
+    val allPosts by viewModel.allPosts.collectAsState()
+    //val posts by viewModel.feedPosts.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val currentUser by viewModel.currentUser.collectAsState()
     val error by viewModel.error.collectAsState()
@@ -89,8 +94,18 @@ fun FeedScreen(
     val authState by viewModel.authState.collectAsState()
 
     LaunchedEffect(Unit) {
-        // Check if Firebase is available
+        // check if Firebase is available
         viewModel.checkFirebaseAvailability()
+    }
+
+    LaunchedEffect(authState, selectedTab) {
+        if (authState == SocialViewModel.AuthState.AUTHENTICATED) {
+            if (selectedTab == 0) {
+                viewModel.loadFollowingFeed()
+            } else {
+                viewModel.loadAllFeed()
+            }
+        }
     }
 
     val onAddComment: (String, String) -> Unit = {
@@ -105,10 +120,40 @@ fun FeedScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Food Feed") },
+                title = {
+                    //Text("Food Feed")
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        androidx.compose.material3.TabRow(
+                            selectedTabIndex = selectedTab,
+                            modifier = Modifier.width(200.dp)
+                        ) {
+                            androidx.compose.material3.Tab(
+                                selected = selectedTab == 0,
+                                onClick = {
+                                    selectedTab = 0
+                                    if (authState == SocialViewModel.AuthState.AUTHENTICATED) {
+                                        viewModel.loadFollowingFeed()
+                                    }
+                                },
+                                text = { Text("Following") }
+                            )
+                            androidx.compose.material3.Tab(
+                                selected = selectedTab == 1,
+                                onClick = {
+                                    selectedTab = 1
+                                    viewModel.loadAllFeed()
+                                },
+                                text = { Text("All") }
+                            )
+                        }
+                    }
+                },
                 actions = {
                     IconButton(onClick = {
-                        /* Open search */
+                        onNavigateToSearch()
                     }) {
                         Icon(Icons.Default.Search, contentDescription = "Search")
                     }
@@ -144,6 +189,9 @@ fun FeedScreen(
         }
     ) {
         padding ->
+
+        // Display posts based on selected tab
+        val posts = if (selectedTab == 0) followingPosts else allPosts
 
         when {
             // error message exist
@@ -193,44 +241,47 @@ fun FeedScreen(
             }
 
             else -> {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize().padding(padding),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(
-                        items = posts,
-                        key = { it.postID }
-                    ) { post ->
+                key(selectedTab) {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize().padding(padding),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(
+                            items = posts,
+                            key = { it.postID }
+                        ) {
+                            post ->
 
-                        val isLiked by viewModel.isPostLikedByUser(post.postID)
-                            .collectAsState(initial = false)
+                            val isLiked by viewModel.isPostLikedByUser(post.postID)
+                                .collectAsState(initial = false)
 
-                        PostCard(
-                            post = post,
-                            onLikeClick = {
-                                if (authState == SocialViewModel.AuthState.AUTHENTICATED) {
-                                    if (isLiked) {
-                                        viewModel.unlikePost(post.postID)
+                            PostCard(
+                                post = post,
+                                onLikeClick = {
+                                    if (authState == SocialViewModel.AuthState.AUTHENTICATED) {
+                                        if (isLiked) {
+                                            viewModel.unlikePost(post.postID)
+                                        } else {
+                                            viewModel.likePost(post.postID)
+                                        }
                                     } else {
-                                        viewModel.likePost(post.postID)
+                                        // Show sign in prompt
+                                        viewModel.setError("Please sign in to like posts")
                                     }
-                                } else {
-                                    // Show sign in prompt
-                                    viewModel.setError("Please sign in to like posts")
-                                }
-                            },
-                            onCommentClick = {
-                                /* Navigate to comments */
-                            },
-                            onAddComment = {
-                                commentText ->
-                                onAddComment(post.postID, commentText)
-                            },
-                            onProfileClick = {
-                                onNavigateToProfile(post.userID)
-                            },
-                            isLiked = isLiked
-                        )
+                                },
+                                onCommentClick = {
+                                    /* Navigate to comments */
+                                },
+                                onAddComment = {
+                                    commentText ->
+                                    onAddComment(post.postID, commentText)
+                                },
+                                onProfileClick = {
+                                    onNavigateToProfile(post.userID)
+                                },
+                                isLiked = isLiked
+                            )
+                        }
                     }
                 }
             }
@@ -253,13 +304,12 @@ fun PostCard(
     var showComments by remember { mutableStateOf(false) }
     var newCommentText by remember { mutableStateOf("") }
 
-    val comments by remember(showComments) {
-        if (showComments) {
-            viewModel.getCommentsForPost(post.postID)
-        } else {
-            flowOf(emptyList())
-        }
-    }.collectAsState(initial = emptyList())
+    val commentsFlow = remember(post.postID) {
+        viewModel.getCommentsForPost(post.postID)
+    }
+    val comments by commentsFlow.collectAsState(initial = emptyList())
+
+    val updatedPost by viewModel.updatePostRealtime(post.postID).collectAsState(initial = post)
 
     Card(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
@@ -281,9 +331,9 @@ fun PostCard(
                     Box(
                         modifier = Modifier.fillMaxSize().clickable { onProfileClick() }
                     ) {
-                        if (post.userProfileImageUrl.isNotEmpty()) {
+                        if (updatedPost.userProfileImageUrl.isNotEmpty()) {
                             Image(
-                                painter = rememberAsyncImagePainter(post.userProfileImageUrl),
+                                painter = rememberAsyncImagePainter(updatedPost.userProfileImageUrl),
                                 contentDescription = "Profile",
                                 contentScale = ContentScale.Crop
                             )
@@ -303,11 +353,11 @@ fun PostCard(
                     modifier = Modifier.weight(1f)
                 ) {
                     Text(
-                        text = post.username,
+                        text = updatedPost.username,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = timeFormat.format(Date(post.created)),
+                        text = timeFormat.format(Date(updatedPost.created)),
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -319,7 +369,7 @@ fun PostCard(
                     color = MaterialTheme.colorScheme.primaryContainer
                 ) {
                     Text(
-                        text = post.foodName,
+                        text = updatedPost.foodName,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                         fontSize = 12.sp
                     )
@@ -328,16 +378,16 @@ fun PostCard(
 
             // post image
             Image(
-                painter = rememberAsyncImagePainter(post.foodImageUrl),
+                painter = rememberAsyncImagePainter(updatedPost.foodImageUrl),
                 contentDescription = "Food",
                 modifier = Modifier.fillMaxWidth().height(250.dp),
                 contentScale = ContentScale.Crop
             )
 
             // caption
-            if (post.caption.isNotEmpty()) {
+            if (updatedPost.caption.isNotEmpty()) {
                 Text(
-                    text = post.caption,
+                    text = updatedPost.caption,
                     modifier = Modifier.padding(12.dp)
                 )
             }
@@ -352,20 +402,20 @@ fun PostCard(
                     modifier = Modifier.fillMaxWidth().padding(8.dp),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    NutritionInfo("Calories", "${post.numCalories}")
-                    NutritionInfo("Protein", "${post.numProtein.toInt()}g")
+                    NutritionInfo("Calories", "${updatedPost.numCalories}")
+                    NutritionInfo("Protein", "${updatedPost.numProtein.toInt()}g")
                     //NutritionInfo("Carbs", "${post.carbs.toInt()}g")
                     //NutritionInfo("Fat", "${post.fat.toInt()}g")
                 }
             }
 
             // comments area
-            if (post.numComments > 0) {
+            if (updatedPost.numComments > 0 || comments.isNotEmpty()) {
                 Column(
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
                 ) {
                     TextButton(
-                        onClick = { showComments = !showComments },  // Toggle comments
+                        onClick = { showComments = !showComments },
                         modifier = Modifier.padding(0.dp)
                     ) {
                         Text(
@@ -377,16 +427,14 @@ fun PostCard(
 
                     // Show comments if expanded
                     if (showComments) {
-                        val visibleComments = comments.take(5) // Show only first 5 comments
+                        val visibleComments = comments.take(n = 5) // Show only first 5 comments
                         val remainingCount = comments.size - visibleComments.size
 
                         Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .heightIn(max = 200.dp)
-                                .verticalScroll(rememberScrollState())
+                            modifier = Modifier.fillMaxWidth().heightIn(max = 200.dp).verticalScroll(rememberScrollState())
                         ) {
-                            visibleComments.forEach { comment ->
+                            visibleComments.forEach {
+                                comment ->
                                 CommentItem(comment = comment)
                             }
 
@@ -405,7 +453,8 @@ fun PostCard(
                         }
                     } else {
                         // Show only last 2 comments as preview
-                        comments.takeLast(2).forEach { comment ->
+                        comments.takeLast(n = 2).forEach {
+                            comment ->
                             CommentPreview(comment = comment)
                         }
                     }
@@ -414,9 +463,7 @@ fun PostCard(
 
             // Quick comment input
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 OutlinedTextField(
@@ -461,7 +508,7 @@ fun PostCard(
                             tint = if (isLiked) Color.Red else MaterialTheme.colorScheme.onSurface
                         )
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("${post.numLikes}")
+                        Text("${updatedPost.numLikes}")
                     }
                 }
 
@@ -473,7 +520,7 @@ fun PostCard(
                             contentDescription = "Comment"
                         )
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("${post.numComments}")
+                        Text("${updatedPost.numComments}")
                     }
                 }
 

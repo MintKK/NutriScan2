@@ -126,7 +126,7 @@ class SocialRepository @Inject constructor(
 
             // increment post count
             usersCollection.document(currentUser.uid)
-                .update("postCount", FieldValue.increment(1))
+                .update("numPosts", FieldValue.increment(1))
                 .await()
 
             Result.success(value = post.postID)
@@ -256,14 +256,15 @@ class SocialRepository @Inject constructor(
         emit(followedPosts + otherPosts)
     }.flowOn(Dispatchers.IO)
 
-    fun getFeedPostsRealtime(userId: String): Flow<List<Post>> = callbackFlow {
+    fun getFeedPostsRealtime(userID: String, sortBy: String = "trendingScore"): Flow<List<Post>> = callbackFlow {
         var followingListener: ListenerRegistration? = null
         var postsListener: ListenerRegistration? = null
 
         // Listen to follows changes
         followingListener = followsCollection
-            .whereEqualTo("followerID", userId)
-            .addSnapshotListener { followsSnapshot, error ->
+            .whereEqualTo("followerID", userID)
+            .addSnapshotListener {
+                followsSnapshot, error ->
                 if (error != null) {
                     close(error)
 
@@ -271,10 +272,10 @@ class SocialRepository @Inject constructor(
                 }
 
                 val followingIDs = followsSnapshot?.documents?.mapNotNull { it.getString("followingID") } ?: emptyList()
-                val allUserIDs = followingIDs + userId
+                val allUserIDs = followingIDs // + userID
 
                 if (allUserIDs.isEmpty()) {
-                    trySend(emptyList<Post>())
+                    trySend(emptyList())
 
                     return@addSnapshotListener
                 }
@@ -285,13 +286,15 @@ class SocialRepository @Inject constructor(
                 // Create new posts listener with updated following list
                 postsListener = postsCollection
                     .whereIn("userID", allUserIDs)
-                    .orderBy("created", Query.Direction.DESCENDING)
+                    .orderBy(sortBy, Query.Direction.DESCENDING)
                     .limit(50)
                     .addSnapshotListener { postsSnapshot, postsError ->
                         if (postsError != null) {
                             return@addSnapshotListener
                         }
-                        trySend(postsSnapshot?.toObjects<Post>() ?: emptyList<Post>())
+
+                        val posts = postsSnapshot?.toObjects<Post>() ?: emptyList()
+                        trySend(posts)
                     }
             }
 
@@ -299,6 +302,24 @@ class SocialRepository @Inject constructor(
             followingListener?.remove()
             postsListener?.remove()
         }
+    }
+
+    fun getAllPosts(sortBy: String = "trendingScore"): Flow<List<Post>> = callbackFlow {
+        val listener = postsCollection
+            .orderBy(sortBy, Query.Direction.DESCENDING)
+            .limit(50)
+            .addSnapshotListener {
+                snapshot, error ->
+                if (error != null) {
+                    close(error)
+
+                    return@addSnapshotListener
+                }
+
+                trySend(snapshot?.toObjects<Post>() ?: emptyList())
+            }
+
+        awaitClose { listener.remove() }
     }
 
     fun getUserPosts(userID: String): Flow<List<Post>> = flow {
@@ -333,6 +354,27 @@ class SocialRepository @Inject constructor(
             }
 
         awaitClose { listener.remove() }
+    }
+
+    fun updatePostRealtime(postID: String): Flow<Post> = callbackFlow {
+        val listener = postsCollection.document(postID)
+            .addSnapshotListener {
+                snapshot, error ->
+                if (error != null) {
+                    close(error)
+
+                    return@addSnapshotListener
+                }
+
+                val post = snapshot?.toObject<Post>()
+                if (post != null) {
+                    trySend(post)
+                }
+            }
+
+        awaitClose {
+            listener.remove()
+        }
     }
 
     // like
@@ -414,16 +456,20 @@ class SocialRepository @Inject constructor(
                 content = content
             )
 
-            commentsCollection.document(comment.commentID).set(comment).await()
+            val batch = firestore.batch()
 
-            // Increment post comments count
-            postsCollection.document(postID)
-                .update("numComments", FieldValue.increment(1))
-                .await()
+            // add comment
+            batch.set(commentsCollection.document(comment.commentID), comment)
 
-            Result.success(comment.commentID)
+            // update post
+            batch.update(postsCollection.document(postID), "numComments", FieldValue.increment(1))
+
+            // commit batch
+            batch.commit().await()
+
+            Result.success(value = comment.commentID)
         } catch (e: Exception) {
-            Result.failure(e)
+            Result.failure(exception = e)
         }
     }
 
@@ -516,6 +562,90 @@ class SocialRepository @Inject constructor(
         awaitClose { listener.remove() }
     }
 
+    // helper fun for search users
+    private fun scoreMatch(text: String, query: String): Int {
+        val lowerText = text.lowercase()
+        val lowerQuery = query.lowercase()
+
+        // exact matches have better score
+        if (lowerText == lowerQuery) return 1000
+
+        val index = lowerText.indexOf(lowerQuery)
+        if (index == -1) return 0
+
+        val lengthScore = lowerQuery.length * 10
+        // earlier match get higher score
+        val positionScore = 100 - index
+
+        return lengthScore + positionScore
+    }
+
+    suspend fun searchUsers(query: String): Result<List<User>> {
+        return try {
+            val lowerQuery = query.lowercase()
+
+            // get first character for broader query
+            val firstChar = if (lowerQuery.isNotEmpty()) lowerQuery[0] else 'a'
+
+            // get a larger sample of users starting with the same first letter
+            val snapshot = usersCollection
+                .orderBy("username")
+                .startAt(firstChar.toString())
+                .endAt(firstChar.toString() + "\uf8ff")
+                .limit(50) // Get more users to rank
+                .get()
+                .await()
+
+            val allUsers = snapshot.toObjects<User>()
+
+            // rank users based on both username and displayname
+            val rankedUsers = allUsers
+                .asSequence()
+                .map { user ->
+                    val usernameScore = scoreMatch(user.username, lowerQuery)
+                    val displayScore = scoreMatch(user.displayname, lowerQuery)
+                    val totalScore = usernameScore + displayScore
+                    user to totalScore
+                }
+                .filter { it.second > 0 }
+                .sortedByDescending { it.second }
+                .take(20)
+                .map { it.first }
+                .toList()
+
+            // if dont have enough results, make it more general
+            if (rankedUsers.size < 5) {
+                val fallbackSnapshot = usersCollection
+                    .orderBy("username")
+                    .limit(100)
+                    .get()
+                    .await()
+
+                val fallbackUsers = fallbackSnapshot.toObjects<User>()
+
+                val fallbackRanked = fallbackUsers
+                    .asSequence()
+                    .map { user ->
+                        val usernameScore = scoreMatch(user.username, lowerQuery)
+                        val displayScore = scoreMatch(user.displayname, lowerQuery)
+                        val totalScore = usernameScore + displayScore
+                        user to totalScore
+                    }
+                    .filter { it.second > 0 }
+                    .sortedByDescending { it.second }
+                    .take(20)
+                    .map { it.first }
+                    .toList()
+
+                return Result.success(fallbackRanked)
+            }
+
+            Result.success(value = rankedUsers)
+        } catch (e: Exception) {
+            Result.failure(exception = e)
+        }
+    }
+
     // trending score
     private fun calculateTrendingScore(likes: Int, comments: Int, timestamp: Long): Double {
         // algorithm calculation can be changed
@@ -531,6 +661,32 @@ class SocialRepository @Inject constructor(
         }
     }
 
+    suspend fun updateAllTrendingScores(): Result<Boolean> {
+        return try {
+            // get every posts
+            val snapshot = postsCollection.get().await()
+            val posts = snapshot.toObjects<Post>()
+
+            // update each post trending score
+            posts.forEach {
+                post ->
+                val newScore = calculateTrendingScore(
+                    likes = post.numLikes,
+                    comments = post.numComments,
+                    timestamp = post.created
+                )
+
+                postsCollection.document(post.postID)
+                    .update("trendingScore", newScore)
+                    .await()
+            }
+
+            Result.success(value = true)
+        } catch (e: Exception) {
+            Result.failure(exception = e)
+        }
+    }
+
     // pagination
     data class PagingData<T>(
         val items: List<T>,
@@ -540,15 +696,11 @@ class SocialRepository @Inject constructor(
     suspend fun testFirestoreConnection(): Boolean {
         return try {
             withTimeout(10000L) {
-                // Try a simple operation that doesn't require authentication
-                // Using collection group query might work better
                 try {
                     postsCollection.limit(1).get().await()
                     true
                 } catch (e: FirebaseFirestoreException) {
                     if (e.code == FirebaseFirestoreException.Code.PERMISSION_DENIED) {
-                        // This might actually be okay - it means Firestore is reachable
-                        // but requires authentication
                         true
                     } else {
                         throw e
