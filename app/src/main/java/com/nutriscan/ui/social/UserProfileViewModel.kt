@@ -1,10 +1,12 @@
 package com.nutriscan.ui.social
 
+import android.net.Uri
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.nutriscan.data.remote.models.Post
 import com.nutriscan.data.remote.models.User
+import com.nutriscan.data.repository.CloudinaryRepository
 import com.nutriscan.data.repository.SocialRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -17,6 +19,7 @@ import javax.inject.Inject
 @HiltViewModel
 class UserProfileViewModel @Inject constructor(
     private val socialRepository: SocialRepository,
+    private val cloudinaryRepository: CloudinaryRepository,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
@@ -45,6 +48,40 @@ class UserProfileViewModel @Inject constructor(
 
     private val _postsCount = MutableStateFlow(0)
     val postsCount: StateFlow<Int> = _postsCount.asStateFlow()
+
+    private val _isUploadingProfilePic = MutableStateFlow(false)
+    val isUploadingProfilePic: StateFlow<Boolean> = _isUploadingProfilePic.asStateFlow()
+
+    fun updateProfilePicture(imageUri: Uri) {
+        viewModelScope.launch {
+            _isUploadingProfilePic.value = true
+            _error.value = null
+
+            try {
+                // Upload to Cloudinary
+                val uploadResult = socialRepository.uploadProfileImage(imageUri)
+
+                uploadResult.onSuccess {
+                    imageUrl ->
+                    // Update user profile in Firestore
+                    val updateResult = socialRepository.updateUserProfileImage(imageUrl)
+
+                    updateResult.onSuccess {
+                        // Refresh user profile to show new image
+                        loadUserProfile()
+                    }.onFailure {
+                        e ->
+                        _error.value = "Failed to update profile: ${e.message}"
+                    }
+                }.onFailure {
+                    e ->
+                    _error.value = "Failed to upload image: ${e.message}"
+                }
+            } finally {
+                _isUploadingProfilePic.value = false
+            }
+        }
+    }
 
     init {
         loadUserProfile()

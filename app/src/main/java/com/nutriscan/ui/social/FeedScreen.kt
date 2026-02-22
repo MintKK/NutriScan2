@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -57,13 +58,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import coil.compose.AsyncImagePainter
 import coil.compose.rememberAsyncImagePainter
 import com.nutriscan.data.remote.models.Post
 import com.nutriscan.data.remote.models.Comment
@@ -311,6 +315,10 @@ fun PostCard(
 
     val updatedPost by viewModel.updatePostRealtime(post.postID).collectAsState(initial = post)
 
+    val userProfile by viewModel.getUserProfile(post.userID)
+        .collectAsState(initial = null)
+    val profileImageUrl = userProfile?.profileImageUrl ?: ""
+
     Card(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
         shape = RoundedCornerShape(12.dp)
@@ -331,18 +339,15 @@ fun PostCard(
                     Box(
                         modifier = Modifier.fillMaxSize().clickable { onProfileClick() }
                     ) {
-                        if (updatedPost.userProfileImageUrl.isNotEmpty()) {
+                        if (profileImageUrl.isNotEmpty()) {
                             Image(
-                                painter = rememberAsyncImagePainter(updatedPost.userProfileImageUrl),
+                                painter = rememberAsyncImagePainter(profileImageUrl),
                                 contentDescription = "Profile",
-                                contentScale = ContentScale.Crop
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize()
                             )
                         } else {
-                            Icon(
-                                Icons.Default.Person,
-                                contentDescription = null,
-                                modifier = Modifier.padding(8.dp)
-                            )
+                            Icon(Icons.Default.Person, contentDescription = null, modifier = Modifier.padding(8.dp))
                         }
                     }
                 }
@@ -376,11 +381,26 @@ fun PostCard(
                 }
             }
 
+            val painter = rememberAsyncImagePainter(
+                model = updatedPost.foodImageUrl
+            )
+            val painterState = painter.state
+            val intrinsicSize = if (painterState is AsyncImagePainter.State.Success) {
+                painterState.painter.intrinsicSize
+            } else {
+                Size(1f, 1f)
+            }
+            val aspectRatio = if (intrinsicSize.width > 0 && intrinsicSize.height > 0) {
+                intrinsicSize.width / intrinsicSize.height
+            } else {
+                1f
+            }
+
             // post image
             Image(
-                painter = rememberAsyncImagePainter(updatedPost.foodImageUrl),
+                painter = painter,
                 contentDescription = "Food",
-                modifier = Modifier.fillMaxWidth().height(250.dp),
+                modifier = Modifier.fillMaxWidth().aspectRatio(aspectRatio),
                 contentScale = ContentScale.Crop
             )
 

@@ -3,6 +3,8 @@ package com.nutriscan.ui.social
 import android.R
 import android.net.Uri
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,10 +19,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Comment
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Button
@@ -49,6 +54,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -56,11 +62,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.nutriscan.ui.common.ImagePickerResult
+import com.nutriscan.ui.common.GalleryImagePicker
 import androidx.core.content.FileProvider
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.viewModelScope
 import coil.compose.rememberAsyncImagePainter
 import com.nutriscan.data.remote.models.Post
 import com.nutriscan.data.remote.models.User
+import kotlinx.coroutines.launch
 import java.io.File
 import java.io.FileOutputStream
 
@@ -86,6 +96,25 @@ fun CreatePostScreen(
     val currentUserID by socialViewModel.currentUser.collectAsState()
     val context = LocalContext.current
 
+    var showImagePicker by remember { mutableStateOf(false) }
+
+    val isUploading by viewModel.isLoading.collectAsState()
+    val postError by viewModel.error.collectAsState()
+    val isPostCreated by viewModel.isPostCreated.collectAsState()
+
+    LaunchedEffect(postError) {
+        if (postError != null) {
+            error = postError
+            viewModel.resetState()
+        }
+    }
+
+    LaunchedEffect(isPostCreated) {
+        if (isPostCreated) {
+            onBack()
+        }
+    }
+
     LaunchedEffect(Unit) {
         try {
             isLoading = true
@@ -106,6 +135,22 @@ fun CreatePostScreen(
             imageUri = Uri.parse("https://via.placeholder.com/300")
         } finally {
             isLoading = false
+        }
+    }
+
+    fun handleImagePickerResult(result: ImagePickerResult) {
+        showImagePicker = false
+        when (result) {
+            is ImagePickerResult.Success -> {
+                imageUri = result.uri
+                // Optionally show a preview
+            }
+            is ImagePickerResult.Error -> {
+                error = result.message
+            }
+            is ImagePickerResult.Cancelled -> {
+                // User cancelled, do nothing
+            }
         }
     }
 
@@ -145,6 +190,66 @@ fun CreatePostScreen(
                     text = "✅ Image ready",
                     color = MaterialTheme.colorScheme.primary
                 )
+            }
+
+            Card(
+                modifier = Modifier.fillMaxWidth().height(200.dp).clickable { showImagePicker = true },
+                shape = RoundedCornerShape(size = 12.dp)
+            ) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (imageUri != null) {
+                        // Show image preview
+                        Image(
+                            painter = rememberAsyncImagePainter(imageUri),
+                            contentDescription = "Selected food",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                        // Overlay change button
+                        IconButton(
+                            onClick = { showImagePicker = true },
+                            modifier = Modifier.align(Alignment.TopEnd).padding(8.dp).background(
+                                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f),
+                                shape = CircleShape
+                            )
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Edit,
+                                contentDescription = "Change image"
+                            )
+                        }
+                    } else {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Icon(
+                                Icons.Default.AddPhotoAlternate,
+                                contentDescription = null,
+                                modifier = Modifier.size(48.dp),
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                "Tap to select an image",
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+
+                    if (isUploading) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(Color.Black.copy(alpha = 0.5f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator(color = Color.White)
+                        }
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -215,14 +320,21 @@ fun CreatePostScreen(
             val proteinValue = protein.toFloatOrNull()
 
             Button(onClick = {
-                socialViewModel.createPost(
-                    caption = caption,
-                    foodName = foodName,
-                    calories = caloriesValue!!,
-                    protein = proteinValue!!,
-                    imageUri = imageUri!!
-                )
-                onBack()
+                viewModel.viewModelScope.launch {
+                    try {
+                        viewModel.createPost(
+                            caption = caption,
+                            foodName = foodName,
+                            calories = caloriesValue!!,
+                            protein = proteinValue!!,
+                            imageUri = imageUri!!
+                        )
+                    } catch (e: Exception) {
+                        error = e.message
+                    } finally {
+
+                    }
+                }
             },
             modifier = Modifier.fillMaxWidth(),
             enabled = ValidatePost(
@@ -231,9 +343,26 @@ fun CreatePostScreen(
                 calories = caloriesValue,
                 protein = proteinValue,
                 imageUri = imageUri
-            )) {
-                Text(text = "Post")
+            )  && !isUploading) {
+                if (isUploading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        color = Color.White,
+                        strokeWidth = 2.dp
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Uploading...")
+                } else {
+                    Text("Post")
+                }
             }
+        }
+    }
+
+    if (showImagePicker) {
+        GalleryImagePicker {
+            result ->
+            handleImagePickerResult(result)
         }
     }
 }

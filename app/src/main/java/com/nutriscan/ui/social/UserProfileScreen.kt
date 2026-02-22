@@ -1,6 +1,7 @@
 package com.nutriscan.ui.social
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,6 +19,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Comment
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Button
@@ -37,9 +39,13 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -51,6 +57,8 @@ import com.nutriscan.data.remote.models.Post
 import com.nutriscan.data.remote.models.User
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import com.nutriscan.ui.common.ImagePickerResult
+import com.nutriscan.ui.common.GalleryImagePicker
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -90,6 +98,27 @@ fun UserProfileScreen(
         }
     }
 
+    var showImagePicker by remember { mutableStateOf(false) }
+    var isUploadingProfilePic by remember { mutableStateOf(false) }
+
+    fun handleImagePickerResult(result: ImagePickerResult) {
+        showImagePicker = false
+        when (result) {
+            is ImagePickerResult.Success -> {
+                viewModel.updateProfilePicture(result.uri)
+            }
+            is ImagePickerResult.Error -> {
+                // Show error (you might want to add error state to ViewModel)
+            }
+            is ImagePickerResult.Cancelled -> {
+                // User cancelled
+            }
+        }
+    }
+
+    // Observe upload state
+    val isUploading by viewModel.isUploadingProfilePic.collectAsState()
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -113,9 +142,7 @@ fun UserProfileScreen(
         padding ->
         if (isLoading && userProfile == null) {
             Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
+                modifier = Modifier.fillMaxSize().padding(padding),
                 contentAlignment = Alignment.Center
             ) {
                 CircularProgressIndicator()
@@ -148,9 +175,7 @@ fun UserProfileScreen(
 
             // successful loading of user profile
             LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
+                modifier = Modifier.fillMaxSize().padding(padding)
             ) {
                 item {
                     ProfileHeader(
@@ -167,7 +192,11 @@ fun UserProfileScreen(
                             }
                         },
                         isCurrentUser = isCurrentUser,
-                        onSignOut = { handleSignOut() }
+                        onSignOut = { handleSignOut() },
+                        onEditProfilePicture = if (isCurrentUser) {
+                            { showImagePicker = true }
+                        } else null,
+                        isUploadingProfilePic = isUploading
                     )
                 }
 
@@ -200,6 +229,13 @@ fun UserProfileScreen(
             }
         }
     }
+
+    if (showImagePicker) {
+        GalleryImagePicker {
+            result ->
+            handleImagePickerResult(result)
+        }
+    }
 }
 
 @Composable
@@ -211,7 +247,9 @@ fun ProfileHeader(
     postsCount: Int,
     onFollowClick: () -> Unit,
     isCurrentUser: Boolean,
-    onSignOut: () -> Unit
+    onSignOut: () -> Unit,
+    onEditProfilePicture: (() -> Unit)? = null,
+    isUploadingProfilePic: Boolean = false
 ) {
     Column(
         modifier = Modifier.fillMaxWidth().padding(16.dp)
@@ -221,22 +259,79 @@ fun ProfileHeader(
             verticalAlignment = Alignment.CenterVertically
         ) {
             // user profile picture
-            Surface(
-                modifier = Modifier.size(80.dp).clip(CircleShape),
-                color = MaterialTheme.colorScheme.primaryContainer
+//            Surface(
+//                modifier = Modifier.size(80.dp).clip(CircleShape),
+//                color = MaterialTheme.colorScheme.primaryContainer
+//            ) {
+//                if (userProfile?.profileImageUrl?.isNotEmpty() == true) {
+//                    Image(
+//                        painter = rememberAsyncImagePainter(userProfile.profileImageUrl),
+//                        contentDescription = "Profile",
+//                        contentScale = ContentScale.Crop
+//                    )
+//                } else {
+//                    Icon(
+//                        Icons.Default.Person,
+//                        contentDescription = null,
+//                        modifier = Modifier.padding(16.dp)
+//                    )
+//                }
+//            }
+
+            Box(
+                modifier = Modifier.size(80.dp)
             ) {
-                if (userProfile?.profileImageUrl?.isNotEmpty() == true) {
-                    Image(
-                        painter = rememberAsyncImagePainter(userProfile.profileImageUrl),
-                        contentDescription = "Profile",
-                        contentScale = ContentScale.Crop
-                    )
-                } else {
-                    Icon(
-                        Icons.Default.Person,
-                        contentDescription = null,
-                        modifier = Modifier.padding(16.dp)
-                    )
+                Surface(
+                    modifier = Modifier.size(80.dp).clip(CircleShape),
+                    color = MaterialTheme.colorScheme.primaryContainer
+                ) {
+                    if (userProfile?.profileImageUrl?.isNotEmpty() == true) {
+                        Image(
+                            painter = rememberAsyncImagePainter(userProfile.profileImageUrl),
+                            contentDescription = "Profile",
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        Icon(
+                            Icons.Default.Person,
+                            contentDescription = null,
+                            modifier = Modifier.padding(16.dp)
+                        )
+                    }
+                }
+
+                // Edit button overlay for current user
+                if (onEditProfilePicture != null && !isUploadingProfilePic) {
+                    IconButton(
+                        onClick = onEditProfilePicture,
+                        modifier = Modifier.align(Alignment.BottomEnd).size(28.dp).background(
+                                color = MaterialTheme.colorScheme.primary,
+                                shape = CircleShape
+                            )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = "Edit profile picture",
+                            modifier = Modifier.size(16.dp),
+                            tint = Color.White
+                        )
+                    }
+                }
+
+                if (isUploadingProfilePic) {
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .clip(CircleShape)
+                            .background(Color.Black.copy(alpha = 0.5f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(
+                            color = Color.White,
+                            modifier = Modifier.size(32.dp),
+                            strokeWidth = 2.dp
+                        )
+                    }
                 }
             }
 

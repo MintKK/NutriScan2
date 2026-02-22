@@ -487,4 +487,8 @@ class SocialViewModel @Inject constructor(
             }
         }
     }
+
+    fun getUserProfile(userId: String): Flow<User?> {
+        return socialRepository.getUserProfileFlow(userId)
+    }
 }

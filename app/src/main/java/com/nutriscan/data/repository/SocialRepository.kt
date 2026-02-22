@@ -35,7 +35,8 @@ import kotlin.math.pow
 class SocialRepository @Inject constructor(
     private val firestore: FirebaseFirestore,
     private val auth: FirebaseAuth,
-    private val storage: FirebaseStorage
+    private val storage: FirebaseStorage,
+    private val cloudinaryRepository: CloudinaryRepository
 ) {
     private val postsCollection = firestore.collection("posts")
     private val usersCollection = firestore.collection("users")
@@ -62,6 +63,19 @@ class SocialRepository @Inject constructor(
         } catch (e: Exception) {
             Result.failure(exception = e)
         }
+    }
+
+    fun getUserProfileFlow(userId: String): Flow<User?> = callbackFlow {
+        val listener = usersCollection.document(userId)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    close(error)
+                    return@addSnapshotListener
+                }
+                trySend(snapshot?.toObject<User>())
+            }
+
+        awaitClose { listener.remove() }
     }
 
     fun getCurrentUser(): Flow<User?> = callbackFlow {
@@ -135,23 +149,59 @@ class SocialRepository @Inject constructor(
         }
     }
 
+//    suspend fun uploadPostImage(imageUri: Uri): Result<String> {
+//        return try {
+//
+//            // testing will skip actual upload for local file URIs
+//            if (imageUri.scheme == "file") {
+//                return Result.success("https://via.placeholder.com/300x300?text=Test+Food")
+//            }
+//
+//            val filename = "posts/${UUID.randomUUID()}.jpg"
+//            val ref = storage.reference.child(filename)
+//            ref.putFile(imageUri).await()
+//
+//            val downloadUrl = ref.downloadUrl.await()
+//
+//            Result.success(value = downloadUrl.toString())
+//        } catch (e: Exception) {
+//            e.printStackTrace()
+//            Result.failure(exception = e)
+//        }
+//    }
     suspend fun uploadPostImage(imageUri: Uri): Result<String> {
         return try {
-
-            // testing will skip actual upload for local file URIs
-            if (imageUri.scheme == "file") {
+            if (imageUri.scheme == "file" && imageUri.toString().contains("temp_apple")) {
                 return Result.success("https://via.placeholder.com/300x300?text=Test+Food")
             }
 
-            val filename = "posts/${UUID.randomUUID()}.jpg"
-            val ref = storage.reference.child(filename)
-            ref.putFile(imageUri).await()
-
-            val downloadUrl = ref.downloadUrl.await()
-
-            Result.success(value = downloadUrl.toString())
+            // Upload to Cloudinary
+            cloudinaryRepository.uploadImage(imageUri, "posts")
         } catch (e: Exception) {
             e.printStackTrace()
+            Result.failure(e)
+        }
+    }
+
+    suspend fun uploadProfileImage(imageUri: Uri): Result<String> {
+        return try {
+            cloudinaryRepository.uploadImage(imageUri, "profiles")
+        } catch (e: Exception) {
+            e.printStackTrace()
+            Result.failure(e)
+        }
+    }
+
+    suspend fun updateUserProfileImage(imageUrl: String): Result<Boolean> {
+        return try {
+            val currentUser = auth.currentUser ?: throw Exception("User not authenticated")
+
+            usersCollection.document(currentUser.uid)
+                .update("profileImageUrl", imageUrl)
+                .await()
+
+            Result.success(value = true)
+        } catch (e: Exception) {
             Result.failure(exception = e)
         }
     }

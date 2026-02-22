@@ -11,6 +11,11 @@ android {
     namespace = "com.nutriscan"
     compileSdk = 34
 
+    buildFeatures {
+        buildConfig = true
+        compose = true  // Add compose here, not in a separate block
+    }
+
     defaultConfig {
         applicationId = "com.nutriscan"
         minSdk = 24
@@ -19,10 +24,23 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        buildConfigField("String", "CLOUDINARY_CLOUD_NAME", "\"dgy05ntoo\"")
+        buildConfigField("String", "CLOUDINARY_API_KEY", "\"269575858957227\"")
+        buildConfigField("String", "CLOUDINARY_API_SECRET", "\"DKL5hAqIVR_limHHoDDIMOxbjXw\"")
     }
 
     buildTypes {
+        debug {
+            buildConfigField("String", "CLOUDINARY_CLOUD_NAME", "\"dgy05ntoo\"")
+            buildConfigField("String", "CLOUDINARY_API_KEY", "\"269575858957227\"")
+            buildConfigField("String", "CLOUDINARY_API_SECRET", "\"DKL5hAqIVR_limHHoDDIMOxbjXw\"")
+        }
         release {
+            buildConfigField("String", "CLOUDINARY_CLOUD_NAME", "\"dgy05ntoo\"")
+            buildConfigField("String", "CLOUDINARY_API_KEY", "\"269575858957227\"")
+            buildConfigField("String", "CLOUDINARY_API_SECRET", "\"DKL5hAqIVR_limHHoDDIMOxbjXw\"")
+
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
@@ -30,16 +48,16 @@ android {
             )
         }
     }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
+
     kotlinOptions {
         jvmTarget = "17"
     }
-    buildFeatures {
-        compose = true
-    }
+
     // Prevent compression of TFLite model files
     androidResources {
         noCompress += "tflite"
@@ -80,7 +98,7 @@ dependencies {
 
     // ML Kit
     implementation(libs.mlkit.image.labeling)
-    
+
     // TensorFlow Lite (for Food-11 model)
     implementation("org.tensorflow:tensorflow-lite:2.14.0")
     implementation("org.tensorflow:tensorflow-lite-support:0.4.4")
@@ -88,7 +106,7 @@ dependencies {
     // Data
     implementation(libs.gson)
     implementation(libs.datastore.preferences)
-    
+
     // Lifecycle service (for StepCounterService)
     implementation("androidx.lifecycle:lifecycle-service:2.6.2")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.0")
@@ -136,4 +154,7 @@ dependencies {
 
     // Image loading
     implementation("io.coil-kt:coil-compose:2.5.0")
+
+    // cloudinary
+    implementation("com.cloudinary:cloudinary-android:2.3.1")
 }
