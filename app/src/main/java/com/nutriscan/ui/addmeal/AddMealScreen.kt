@@ -1495,6 +1495,17 @@ fun OCRLabelScanner(
 ) {
     val context = LocalContext.current
     var galleryError by remember { mutableStateOf<String?>(null) }
+    var showCamera by remember { mutableStateOf(false) }
+
+    if (showCamera) {
+        CameraCapture(
+            isClassifying = isProcessing,
+            error = error,
+            onImageCaptured = onImageCaptured,
+            onManualSearch = { showCamera = false } // Use search button as back/cancel in this context
+        )
+        return
+    }
 
     // Gallery picker for label images
     val galleryLauncher = rememberLauncherForActivityResult(
@@ -1619,8 +1630,20 @@ fun OCRLabelScanner(
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // Pick from gallery
+                    // Scan with Camera
                     Button(
+                        onClick = { showCamera = true },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.CameraAlt, null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Scan with Camera")
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Pick from gallery
+                    OutlinedButton(
                         onClick = { galleryLauncher.launch("image/*") },
                         modifier = Modifier.fillMaxWidth()
                     ) {
@@ -1628,6 +1651,8 @@ fun OCRLabelScanner(
                         Spacer(Modifier.width(8.dp))
                         Text("Choose from Gallery")
                     }
+
+                    Spacer(modifier = Modifier.height(12.dp))
 
                     // Cancel
                     TextButton(onClick = onCancel) {
