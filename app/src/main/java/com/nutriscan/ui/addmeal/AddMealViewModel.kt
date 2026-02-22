@@ -338,7 +338,15 @@ class AddMealViewModel @Inject constructor(
                     MealImageStorage.saveMealImage(appContext, bitmap)
                 }
                 
-                mealRepository.logMeal(food, grams, source, imagePath)
+                // If it's a newly created food item (like from OCR), save it first
+                val finalFood = if (food.id == 0) {
+                    val newId = foodRepository.insertCustomFood(food)
+                    food.copy(id = newId.toInt())
+                } else {
+                    food
+                }
+                
+                mealRepository.logMeal(finalFood, grams, source, imagePath)
                 _uiState.update { it.copy(isLogging = false, mealLogged = true, capturedBitmap = null) }
             } catch (e: Exception) {
                 _uiState.update { it.copy(
@@ -524,22 +532,48 @@ class AddMealViewModel @Inject constructor(
                     return@launch
                 }
                 
-                // Create a FoodItem from OCR data
+                // Parse serving size to find the amount in grams
+                var servingSizeGrams = 100f // Default if we can't parse it
+                result.servingSize?.let { sizeStr ->
+                    // Look for numbers followed by 'g' or 'grams'
+                    val match = Regex("""(\d+\.?\d*)\s*(g|grams|ml)""", RegexOption.IGNORE_CASE).find(sizeStr)
+                    if (match != null) {
+                        match.groupValues.getOrNull(1)?.toFloatOrNull()?.let {
+                            if (it > 0) servingSizeGrams = it
+                        }
+                    } else {
+                        // Fallback: just look for any number
+                        val numMatch = Regex("""(\d+\.?\d*)""").find(sizeStr)
+                        numMatch?.groupValues?.getOrNull(1)?.toFloatOrNull()?.let {
+                            if (it > 0) servingSizeGrams = it
+                        }
+                    }
+                }
+                
+                // OCR results are per serving, we need to convert to per 100g for FoodItem
+                val scaleFactor = 100f / servingSizeGrams
+                
+                // Create a FoodItem from OCR data (scaled to per 100g)
+                // Use default kotlin Float rounding before conversion to Int to prevent truncation
                 val food = com.nutriscan.data.local.entity.FoodItem(
                     name = "Scanned Label",
-                    kcalPer100g = result.calories ?: 0,
-                    proteinPer100g = result.protein ?: 0f,
-                    carbsPer100g = result.carbs ?: 0f,
-                    fatPer100g = result.fat ?: 0f,
+                    kcalPer100g = kotlin.math.round((result.calories ?: 0) * scaleFactor).toInt(),
+                    proteinPer100g = ((result.protein ?: 0f) * scaleFactor),
+                    carbsPer100g = ((result.carbs ?: 0f) * scaleFactor),
+                    fatPer100g = ((result.fat ?: 0f) * scaleFactor),
                     tags = "ocr,scanned"
                 )
                 
-                val nutrition = calculateNutrition(food, _uiState.value.portionGrams)
+                // Auto-set the portion to exactly the serving size that was scanned
+                val scannedPortionGrams = servingSizeGrams.toInt()
+                
+                val nutrition = calculateNutrition(food, scannedPortionGrams)
                 val suggestion = aiCoachRepository.getSuggestionForFood(food)
                 
                 _uiState.update { it.copy(
                     isProcessingOCR = false,
                     selectedFood = food,
+                    portionGrams = scannedPortionGrams,
                     calculatedNutrition = nutrition,
                     coachSuggestion = suggestion,
                     mlLabel = "📋 Scanned Label" + (result.servingSize?.let { " ($it)" } ?: ""),

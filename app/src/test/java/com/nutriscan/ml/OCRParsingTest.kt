@@ -18,79 +18,14 @@ import org.junit.Test
  */
 class OCRParsingTest {
 
-    // ============ Replicated constants from OCRScannerService ============
+    private val ocrScannerService = OCRScannerService()
 
-    private val NUMBER_PATTERN = Regex("""(\d+\.?\d*)""")
-    private val CALORIE_KEYWORDS = listOf("calories", "energy", "kcal", "cal")
-    private val PROTEIN_KEYWORDS = listOf("protein")
-    private val CARB_KEYWORDS = listOf("carbohydrate", "carbs", "total carb")
-    private val FAT_KEYWORDS = listOf("total fat", "fat")
-    private val SERVING_KEYWORDS = listOf("serving size", "per serving", "portion")
-
-    data class NutritionLabelResult(
-        val calories: Int? = null,
-        val protein: Float? = null,
-        val carbs: Float? = null,
-        val fat: Float? = null,
-        val servingSize: String? = null,
-        val rawText: String = ""
-    ) {
-        val hasAnyData: Boolean get() = calories != null || protein != null || carbs != null || fat != null
-    }
-
-    /**
-     * Exact replica of OCRScannerService.parseNutritionText().
-     */
     private fun parseNutritionText(fullText: String): NutritionLabelResult {
-        val lines = fullText.lines().map { it.trim() }.filter { it.isNotBlank() }
-
-        var calories: Int? = null
-        var protein: Float? = null
-        var carbs: Float? = null
-        var fat: Float? = null
-        var servingSize: String? = null
-
-        for (i in lines.indices) {
-            val line = lines[i].lowercase()
-            val nextLine = lines.getOrNull(i + 1)?.lowercase()
-
-            if (calories == null && CALORIE_KEYWORDS.any { line.contains(it) }) {
-                calories = extractNumber(line)?.toInt()
-                    ?: nextLine?.let { extractNumber(it)?.toInt() }
-            }
-
-            if (protein == null && PROTEIN_KEYWORDS.any { line.contains(it) }) {
-                protein = extractNumber(line)
-                    ?: nextLine?.let { extractNumber(it) }
-            }
-
-            if (carbs == null && CARB_KEYWORDS.any { line.contains(it) }) {
-                carbs = extractNumber(line)
-                    ?: nextLine?.let { extractNumber(it) }
-            }
-
-            if (fat == null && FAT_KEYWORDS.any { line.contains(it) }) {
-                fat = extractNumber(line)
-                    ?: nextLine?.let { extractNumber(it) }
-            }
-
-            if (servingSize == null && SERVING_KEYWORDS.any { line.contains(it) }) {
-                val fullLine = lines[i]
-                servingSize = fullLine
-                    .replace(Regex("(?i)(serving size|per serving|portion)\\s*:?\\s*"), "")
-                    .trim()
-                    .ifBlank { null }
-            }
-        }
-
-        return NutritionLabelResult(
-            calories = calories, protein = protein, carbs = carbs,
-            fat = fat, servingSize = servingSize, rawText = fullText
-        )
+        return ocrScannerService.parseNutritionText(fullText)
     }
 
     private fun extractNumber(text: String): Float? {
-        return NUMBER_PATTERN.find(text)?.groupValues?.get(1)?.toFloatOrNull()
+        return ocrScannerService.extractNumber(text)
     }
 
     // ==================== Standard Label Parsing ====================
@@ -310,5 +245,35 @@ class OCRParsingTest {
     @Test
     fun `extractNumber returns null for no numbers`() {
         assertNull(extractNumber("Nutrition Facts"))
+    }
+
+    // ==================== OCR Edge Cases ====================
+
+    @Test
+    fun `number with comma is parsed correctly`() {
+        // Thousands separator
+        assertEquals(1200f, extractNumber("Calories 1,200"))
+    }
+
+    @Test
+    fun `typos in calorie keywords are recognized`() {
+        val text = "Calorles 250"
+        val result = parseNutritionText(text)
+        assertEquals(250, result.calories)
+    }
+
+    @Test
+    fun `shortened carb keyword is recognized`() {
+        val text = "Carb 15g"
+        val result = parseNutritionText(text)
+        assertEquals(15f, result.carbs)
+    }
+
+    @Test
+    fun `word boundaries prevent incorrect prefix matching`() {
+        // "nonfat" contains "fat" but shouldn't match "total fat" or "fat" as a nutrient line
+        val text = "nonfat milk\nFat 5g"
+        val result = parseNutritionText(text)
+        assertEquals(5f, result.fat)
     }
 }

@@ -520,8 +520,8 @@ fun PostCard(
                 horizontalArrangement = Arrangement.SpaceAround
             ) {
                 // like button
-                IconButton(onClick = onLikeClick) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onLikeClick, modifier = Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center, modifier = Modifier.fillMaxWidth()) {
                         Icon(
                             imageVector = if (isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                             contentDescription = "Like",
@@ -533,8 +533,8 @@ fun PostCard(
                 }
 
                 // comment button
-                IconButton(onClick = onCommentClick) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onCommentClick, modifier = Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
                         Icon(
                             imageVector = Icons.Default.Comment,
                             contentDescription = "Comment"
@@ -545,7 +545,7 @@ fun PostCard(
                 }
 
                 // share button
-                IconButton(onClick = { /* Share */ }) {
+                IconButton(onClick = { /* Share */ }, modifier = Modifier.weight(1f)) {
                     Icon(
                         imageVector = Icons.Default.Share,
                         contentDescription = "Share"

@@ -156,6 +156,14 @@ fun AddMealScreen(
                         onCancel = { viewModel.resetState() }
                     )
                 }
+                uiState.showOCRScanner -> {
+                    OCRLabelScanner(
+                        isProcessing = uiState.isProcessingOCR,
+                        error = uiState.error,
+                        onImageCaptured = { bitmap -> viewModel.processOCRLabel(bitmap) },
+                        onCancel = { viewModel.resetState() }
+                    )
+                }
                 else -> {
                     // Landing screen: choose input method
                     UnifiedFoodCapture(
@@ -165,7 +173,8 @@ fun AddMealScreen(
                         onManualSearch = { viewModel.showManualSearch() },
                         onShowCamera = { viewModel.showCamera() },
                         onShowGallery = { viewModel.showGallery() },
-                        onShowBarcode = { viewModel.showBarcodeScanner() }
+                        onShowBarcode = { viewModel.showBarcodeScanner() },
+                        onShowOCR = { viewModel.showOCRScanner() }
                     )
                 }
             }
@@ -755,7 +764,8 @@ fun UnifiedFoodCapture(
     onManualSearch: () -> Unit,
     onShowCamera: () -> Unit,
     onShowGallery: () -> Unit,
-    onShowBarcode: () -> Unit
+    onShowBarcode: () -> Unit,
+    onShowOCR: () -> Unit
 ) {
     val context = LocalContext.current
     
@@ -969,6 +979,52 @@ fun UnifiedFoodCapture(
                         textAlign = TextAlign.Center
                     )
                 }
+            }
+        }
+        
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // OCR Label Scanner Banner
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(enabled = !isClassifying) { onShowOCR() },
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant
+            ),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    Icons.Default.DocumentScanner,
+                    contentDescription = "Scan Label",
+                    modifier = Modifier.size(28.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.width(16.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        "Scan Nutrition Label",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        "Auto-fill calories & macros from a photo",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                    )
+                }
+                Icon(
+                    Icons.Default.ChevronRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
         
