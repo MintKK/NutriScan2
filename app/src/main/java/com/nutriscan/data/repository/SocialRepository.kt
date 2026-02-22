@@ -503,19 +503,28 @@ class SocialRepository @Inject constructor(
                 userID = currentUser.uid,
                 username = userProfile.username,
                 userProfileImageUrl = userProfile.profileImageUrl,
-                content = content
+                content = content,
+                createdAt = System.currentTimeMillis()
             )
 
-            val batch = firestore.batch()
+            val result = firestore.runTransaction { transaction ->
+                // Check if post exists
+                val postRef = postsCollection.document(postID)
+                val postSnapshot = transaction.get(postRef)
 
-            // add comment
-            batch.set(commentsCollection.document(comment.commentID), comment)
+                if (!postSnapshot.exists()) {
+                    throw Exception("Post does not exist")
+                }
 
-            // update post
-            batch.update(postsCollection.document(postID), "numComments", FieldValue.increment(1))
+                // Create comment
+                val commentRef = commentsCollection.document(comment.commentID)
+                transaction.set(commentRef, comment)
 
-            // commit batch
-            batch.commit().await()
+                // Update comment count
+                transaction.update(postRef, "numComments", FieldValue.increment(1))
+
+                true
+            }.await()
 
             Result.success(value = comment.commentID)
         } catch (e: Exception) {
