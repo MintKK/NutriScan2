@@ -25,10 +25,17 @@ object NutritionCalculator {
             Goal.WEIGHT_MAINTENANCE -> tdee.toInt()
         }
 
+        val activityProteinMultiplier = when (profile.activityLevel) {
+            ActivityLevel.SEDENTARY -> 1.0
+            ActivityLevel.LIGHTLY_ACTIVE -> 1.1
+            ActivityLevel.MODERATELY_ACTIVE -> 1.2
+            ActivityLevel.VERY_ACTIVE -> 1.3
+        }
+
         val proteinGrams = when (profile.goal) {
-            Goal.FAT_LOSS -> (profile.weightKg * 2.0).toInt()
-            Goal.MUSCLE_GAIN -> (profile.weightKg * 2.5).toInt()
-            Goal.WEIGHT_MAINTENANCE -> (profile.weightKg * 1.8).toInt()
+            Goal.FAT_LOSS -> (profile.weightKg * 2.0 * activityProteinMultiplier).toInt()
+            Goal.MUSCLE_GAIN -> (profile.weightKg * 2.5 * activityProteinMultiplier).toInt()
+            Goal.WEIGHT_MAINTENANCE -> (profile.weightKg * 1.8 * activityProteinMultiplier).toInt()
         }
 
         val fatGrams = (calories * 0.25 / 9).toInt()

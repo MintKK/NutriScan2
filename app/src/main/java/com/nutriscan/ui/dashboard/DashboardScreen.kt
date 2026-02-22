@@ -7,6 +7,8 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.Spring
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -31,6 +33,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -100,7 +103,7 @@ fun DashboardScreen(
     val newlyEarnedBadge by viewModel.newlyEarnedBadge.collectAsState()
     
     // Refresh coach insights when data changes
-    LaunchedEffect(netCalories, todayWaterMl, todayMacros) {
+    LaunchedEffect(netCalories, todayWaterMl, todayMacros, calorieGoal) {
         viewModel.refreshCoachInsights()
     }
 
@@ -302,6 +305,10 @@ fun DashboardScreen(
                                 onDelete = { viewModel.deleteMeal(meal.id) }
                             )
                         }
+                    }
+                    
+                    item {
+                        Spacer(modifier = Modifier.height(80.dp))
                     }
                 }
 
@@ -978,11 +985,17 @@ fun WaterTrackerCard(
     val fraction = if (goalMl > 0) (currentMl.toFloat() / goalMl).coerceIn(0f, 1f) else 0f
     val percentage = (fraction * 100).toInt()
     
-    // Smooth animated fill level
     val animatedFill by animateFloatAsState(
         targetValue = fraction,
         animationSpec = tween(durationMillis = 600),
         label = "waterFill"
+    )
+    
+    val showConfetti = currentMl >= goalMl && goalMl > 0
+    val confettiScale by animateFloatAsState(
+        targetValue = if (showConfetti) 1f else 0f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioHighBouncy),
+        label = "confettiScale"
     )
     
     // Continuous wave animation
@@ -1130,6 +1143,13 @@ fun WaterTrackerCard(
                         color = if (animatedFill > 0.5f) Color.White.copy(alpha = 0.9f) 
                                else MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    if (confettiScale > 0.1f) {
+                        Text(
+                            "🎉",
+                            fontSize = 28.sp,
+                            modifier = Modifier.scale(confettiScale).padding(top = 4.dp)
+                        )
+                    }
                 }
             }
             

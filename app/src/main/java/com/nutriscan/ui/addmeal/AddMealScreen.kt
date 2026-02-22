@@ -865,12 +865,12 @@ fun UnifiedFoodCapture(
                 ) {
                     Icon(
                         Icons.Default.CameraAlt,
-                        contentDescription = "Take Photo",
+                        contentDescription = "Camera",
                         modifier = Modifier.size(32.dp),
                         tint = MaterialTheme.colorScheme.onSecondaryContainer
                     )
                     Text(
-                        "Take Photo",
+                        "Camera",
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Medium,
                         textAlign = TextAlign.Center

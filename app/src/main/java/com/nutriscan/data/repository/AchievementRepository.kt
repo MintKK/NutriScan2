@@ -59,10 +59,12 @@ class AchievementRepository @Inject constructor(
         private val BEST_EARLYBIRD_STREAK = intPreferencesKey("best_earlybird_streak")
 
         private val BADGE_WATER_WARRIOR = booleanPreferencesKey("badge_water_warrior")
+        private val BADGE_WATER_NOVICE = booleanPreferencesKey("badge_water_novice")
         private val BADGE_MACRO_MASTER = booleanPreferencesKey("badge_macro_master")
         private val BADGE_EARLY_BIRD = booleanPreferencesKey("badge_early_bird")
 
         private const val WATER_WARRIOR_DAYS = 5
+        private const val WATER_NOVICE_DAYS = 1
         private const val MACRO_MASTER_DAYS = 7
         private const val EARLY_BIRD_DAYS = 3
     }
@@ -91,6 +93,7 @@ class AchievementRepository @Inject constructor(
 
         // Check and award badges
         val waterWarriorEarned = prefs[BADGE_WATER_WARRIOR] ?: false || waterStreak >= WATER_WARRIOR_DAYS
+        val waterNoviceEarned = prefs[BADGE_WATER_NOVICE] ?: false || waterStreak >= WATER_NOVICE_DAYS
         val macroMasterEarned = prefs[BADGE_MACRO_MASTER] ?: false || macroStreak >= MACRO_MASTER_DAYS
         val earlyBirdEarned = prefs[BADGE_EARLY_BIRD] ?: false || earlyBirdStreak >= EARLY_BIRD_DAYS
 
@@ -100,6 +103,7 @@ class AchievementRepository @Inject constructor(
             p[BEST_MACRO_STREAK] = bestMacro
             p[BEST_EARLYBIRD_STREAK] = bestEarlyBird
             p[BADGE_WATER_WARRIOR] = waterWarriorEarned
+            p[BADGE_WATER_NOVICE] = waterNoviceEarned
             p[BADGE_MACRO_MASTER] = macroMasterEarned
             p[BADGE_EARLY_BIRD] = earlyBirdEarned
         }
@@ -112,10 +116,18 @@ class AchievementRepository @Inject constructor(
 
         val badges = listOf(
             Badge(
+                id = "water_novice",
+                title = "Water Novice",
+                description = "Hit your water goal for $WATER_NOVICE_DAYS day",
+                emoji = "💧",
+                requiredStreak = WATER_NOVICE_DAYS,
+                isEarned = waterNoviceEarned
+            ),
+            Badge(
                 id = "water_warrior",
                 title = "Water Warrior",
                 description = "Hit your water goal for $WATER_WARRIOR_DAYS days straight",
-                emoji = "💧",
+                emoji = "🌊",
                 requiredStreak = WATER_WARRIOR_DAYS,
                 isEarned = waterWarriorEarned
             ),

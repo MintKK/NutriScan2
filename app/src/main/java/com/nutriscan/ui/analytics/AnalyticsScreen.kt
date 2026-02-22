@@ -647,49 +647,88 @@ fun MacroTrendChart(
                 val barCount = data.size
                 if (barCount == 0) return@Canvas
                 
-                val padding = 40f
-                val chartWidth = size.width - padding * 2
-                val chartHeight = size.height - padding * 2
+                val yAxisPadding = 100f
+                val rightPadding = 40f
+                val bottomPadding = 40f
+                val topPadding = 20f
+                
+                val chartWidth = size.width - yAxisPadding - rightPadding
+                val chartHeight = size.height - topPadding - bottomPadding
                 val barWidth = chartWidth / barCount * 0.6f
                 val barSpacing = chartWidth / barCount
                 
-                // Find max total for scaling
-                val maxTotal = data.maxOf { it.protein + it.carbs + it.fat }.coerceAtLeast(1f)
+                // Convert macros to calories for scaling: P:4, C:4, F:9
+                val maxTotalKcal = data.maxOf { it.protein * 4f + it.carbs * 4f + it.fat * 9f }.coerceAtLeast(10f)
+                
+                // Draw Y-axis labels and grid lines
+                val ySteps = 4
+                for (i in 0..ySteps) {
+                    val yLabelValue = (maxTotalKcal * i / ySteps).toInt()
+                    val yPos = size.height - bottomPadding - (chartHeight * i / ySteps)
+                    
+                    // Grid line
+                    drawLine(
+                        color = Color.LightGray.copy(alpha = 0.5f),
+                        start = Offset(yAxisPadding, yPos),
+                        end = Offset(size.width - rightPadding, yPos),
+                        strokeWidth = 2f
+                    )
+                    
+                    // Label
+                    val labelResult = textMeasurer.measure(
+                        "$yLabelValue kcal",
+                        style = TextStyle(fontSize = androidx.compose.ui.unit.TextUnit(10f, androidx.compose.ui.unit.TextUnitType.Sp), color = Color.Gray)
+                    )
+                    drawText(
+                        labelResult,
+                        topLeft = Offset(yAxisPadding - labelResult.size.width - 16f, yPos - labelResult.size.height / 2f)
+                    )
+                }
                 
                 data.forEachIndexed { index, day ->
-                    val x = padding + index * barSpacing + (barSpacing - barWidth) / 2
+                    val x = yAxisPadding + index * barSpacing + (barSpacing - barWidth) / 2
                     
-                    val proteinH = (day.protein / maxTotal) * chartHeight
-                    val carbsH = (day.carbs / maxTotal) * chartHeight
-                    val fatH = (day.fat / maxTotal) * chartHeight
+                    val proteinKcal = day.protein * 4f
+                    val carbsKcal = day.carbs * 4f
+                    val fatKcal = day.fat * 9f
                     
-                    var yOffset = size.height - padding
+                    val proteinH = (proteinKcal / maxTotalKcal) * chartHeight
+                    val carbsH = (carbsKcal / maxTotalKcal) * chartHeight
+                    val fatH = (fatKcal / maxTotalKcal) * chartHeight
+                    
+                    var yOffset = size.height - bottomPadding
                     
                     // Protein (bottom)
-                    drawRoundRect(
-                        color = ProteinColor,
-                        topLeft = Offset(x, yOffset - proteinH),
-                        size = Size(barWidth, proteinH),
-                        cornerRadius = CornerRadius(4f, 4f)
-                    )
-                    yOffset -= proteinH
+                    if (proteinH > 0f) {
+                        drawRoundRect(
+                            color = ProteinColor,
+                            topLeft = Offset(x, yOffset - proteinH),
+                            size = Size(barWidth, proteinH),
+                            cornerRadius = CornerRadius(4f, 4f)
+                        )
+                        yOffset -= proteinH
+                    }
                     
                     // Carbs (middle)
-                    drawRoundRect(
-                        color = CarbsColor,
-                        topLeft = Offset(x, yOffset - carbsH),
-                        size = Size(barWidth, carbsH),
-                        cornerRadius = CornerRadius(4f, 4f)
-                    )
-                    yOffset -= carbsH
+                    if (carbsH > 0f) {
+                        drawRoundRect(
+                            color = CarbsColor,
+                            topLeft = Offset(x, yOffset - carbsH),
+                            size = Size(barWidth, carbsH),
+                            cornerRadius = CornerRadius(4f, 4f)
+                        )
+                        yOffset -= carbsH
+                    }
                     
                     // Fat (top)
-                    drawRoundRect(
-                        color = FatColor,
-                        topLeft = Offset(x, yOffset - fatH),
-                        size = Size(barWidth, fatH),
-                        cornerRadius = CornerRadius(4f, 4f)
-                    )
+                    if (fatH > 0f) {
+                        drawRoundRect(
+                            color = FatColor,
+                            topLeft = Offset(x, yOffset - fatH),
+                            size = Size(barWidth, fatH),
+                            cornerRadius = CornerRadius(4f, 4f)
+                        )
+                    }
                     
                     // Day label
                     val dayLabel = day.day.takeLast(5) // "MM-DD"
@@ -701,7 +740,7 @@ fun MacroTrendChart(
                         textResult,
                         topLeft = Offset(
                             x + barWidth / 2 - textResult.size.width / 2,
-                            size.height - padding + 8f
+                            size.height - bottomPadding + 8f
                         )
                     )
                 }
