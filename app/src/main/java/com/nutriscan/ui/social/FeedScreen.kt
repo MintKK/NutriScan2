@@ -22,7 +22,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Comment
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Favorite
@@ -177,6 +179,11 @@ fun FeedScreen(
                         ) {
                             Icon(Icons.Default.Login, contentDescription = "Sign In")
                         }
+                    }
+                },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
                     }
                 }
             )
@@ -385,10 +392,11 @@ fun PostCard(
                 model = updatedPost.foodImageUrl
             )
             val painterState = painter.state
-            val intrinsicSize = if (painterState is AsyncImagePainter.State.Success) {
+            val loadedPainter = painterState is AsyncImagePainter.State.Success;
+            val intrinsicSize = if (loadedPainter) {
                 painterState.painter.intrinsicSize
             } else {
-                Size(1f, 1f)
+                Size(1f, 0.55f)
             }
             val aspectRatio = if (intrinsicSize.width > 0 && intrinsicSize.height > 0) {
                 intrinsicSize.width / intrinsicSize.height

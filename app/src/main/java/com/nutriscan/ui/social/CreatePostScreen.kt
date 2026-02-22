@@ -115,28 +115,28 @@ fun CreatePostScreen(
         }
     }
 
-    LaunchedEffect(Unit) {
-        try {
-            isLoading = true
-
-            val inputStream = context.assets.open("sample_images/apple.png")
-            val file = File(context.cacheDir, "temp_apple_${System.currentTimeMillis()}.png")
-            FileOutputStream(file).use { outputStream ->
-                inputStream.copyTo(outputStream)
-            }
-
-            imageUri = Uri.fromFile(file)
-            error = null
-        } catch (e: Exception) {
-            e.printStackTrace()
-            error = "Failed to load image: ${e.message}"
-
-            // fallback
-            imageUri = Uri.parse("https://via.placeholder.com/300")
-        } finally {
-            isLoading = false
-        }
-    }
+//    LaunchedEffect(Unit) {
+//        try {
+//            isLoading = true
+//
+//            val inputStream = context.assets.open("sample_images/apple.png")
+//            val file = File(context.cacheDir, "temp_apple_${System.currentTimeMillis()}.png")
+//            FileOutputStream(file).use { outputStream ->
+//                inputStream.copyTo(outputStream)
+//            }
+//
+//            imageUri = Uri.fromFile(file)
+//            error = null
+//        } catch (e: Exception) {
+//            e.printStackTrace()
+//            error = "Failed to load image: ${e.message}"
+//
+//            // fallback
+//            imageUri = Uri.parse("https://via.placeholder.com/300")
+//        } finally {
+//            isLoading = false
+//        }
+//    }
 
     fun handleImagePickerResult(result: ImagePickerResult) {
         showImagePicker = false
@@ -179,19 +179,6 @@ fun CreatePostScreen(
         ) {
             // Right now all the field is from input but maybe want use the scan to pre-fill
             // some of the text fields?
-
-            when {
-                isLoading -> Text("Loading image...")
-                error != null -> Text(
-                    text = "⚠️ $error",
-                    color = MaterialTheme.colorScheme.error
-                )
-                imageUri != null -> Text(
-                    text = "✅ Image ready",
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
-
             Card(
                 modifier = Modifier.fillMaxWidth().height(200.dp).clickable { showImagePicker = true },
                 shape = RoundedCornerShape(size = 12.dp)
@@ -226,7 +213,7 @@ fun CreatePostScreen(
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             Icon(
-                                Icons.Default.AddPhotoAlternate,
+                                imageVector = Icons.Default.AddPhotoAlternate,
                                 contentDescription = null,
                                 modifier = Modifier.size(48.dp),
                                 tint = MaterialTheme.colorScheme.primary
