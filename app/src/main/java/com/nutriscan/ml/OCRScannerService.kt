@@ -40,14 +40,14 @@ class OCRScannerService @Inject constructor() {
         private const val TAG = "OCRScannerService"
 
         // Regex patterns for extracting numeric values
-        private val NUMBER_PATTERN = Regex("""(\d+\.?\d*)""")
+        private val NUMBER_PATTERN = Regex("""(\d+(?:,\d+)*(?:\.\d+)?)""")
 
-        // Keyword patterns (case-insensitive)
-        private val CALORIE_KEYWORDS = listOf("calories", "energy", "kcal", "cal")
-        private val PROTEIN_KEYWORDS = listOf("protein")
-        private val CARB_KEYWORDS = listOf("carbohydrate", "carbs", "total carb")
-        private val FAT_KEYWORDS = listOf("total fat", "fat")
-        private val SERVING_KEYWORDS = listOf("serving size", "per serving", "portion")
+        // Keyword patterns (case-insensitive with word boundaries)
+        private val CALORIE_REGEX = Regex("(?i)\\b(calories|calorles|energy|kcal|cal)\\b")
+        private val PROTEIN_REGEX = Regex("(?i)\\b(protein)\\b")
+        private val CARB_REGEX = Regex("(?i)\\b(carbohydrate|carbs|total carb|carb)\\b")
+        private val FAT_REGEX = Regex("(?i)\\b(total fat|fat)\\b")
+        private val SERVING_REGEX = Regex("(?i)\\b(serving size|per serving|portion)\\b")
     }
 
     /**
@@ -66,16 +66,44 @@ class OCRScannerService @Inject constructor() {
         return parseNutritionText(text)
     }
 
-    /**
-     * Run ML Kit text recognition and return the full text.
-     */
     private suspend fun recognizeText(bitmap: Bitmap): String = suspendCoroutine { cont ->
         val inputImage = InputImage.fromBitmap(bitmap, 0)
         val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
 
         recognizer.process(inputImage)
             .addOnSuccessListener { visionText ->
-                cont.resume(visionText.text)
+                val allLines = visionText.textBlocks.flatMap { it.lines }
+                val rows = mutableListOf<MutableList<com.google.mlkit.vision.text.Text.Line>>()
+                
+                for (line in allLines.sortedBy { it.boundingBox?.top ?: 0 }) {
+                    val box = line.boundingBox ?: continue
+                    
+                    var added = false
+                    for (row in rows) {
+                        val rowBox = row.first().boundingBox ?: continue
+                        val overlapTop = maxOf(box.top, rowBox.top)
+                        val overlapBottom = minOf(box.bottom, rowBox.bottom)
+                        val overlapHeight = overlapBottom - overlapTop
+                        val minHeight = minOf(box.height(), rowBox.height())
+                        
+                        // If lines overlap vertically by at least 40%, they belong to the same visual row
+                        if (minHeight > 0 && overlapHeight > minHeight * 0.4f) {
+                            row.add(line)
+                            added = true
+                            break
+                        }
+                    }
+                    if (!added) {
+                        rows.add(mutableListOf(line))
+                    }
+                }
+                
+                val reconstructedText = rows.map { row ->
+                    row.sortedBy { it.boundingBox?.left ?: 0 }
+                       .joinToString("   ") { it.text }
+                }.joinToString("\n")
+                
+                cont.resume(reconstructedText)
             }
             .addOnFailureListener { e ->
                 Log.e(TAG, "Text recognition failed", e)
@@ -90,7 +118,8 @@ class OCRScannerService @Inject constructor() {
      * - "Total Fat 8g"
      * - "Protein: 5g"
      */
-    private fun parseNutritionText(fullText: String): NutritionLabelResult {
+    @androidx.annotation.VisibleForTesting
+    internal fun parseNutritionText(fullText: String): NutritionLabelResult {
         val lines = fullText.lines().map { it.trim() }.filter { it.isNotBlank() }
 
         var calories: Int? = null
@@ -100,37 +129,36 @@ class OCRScannerService @Inject constructor() {
         var servingSize: String? = null
 
         for (i in lines.indices) {
-            val line = lines[i].lowercase()
-            val nextLine = lines.getOrNull(i + 1)?.lowercase()
+            val line = lines[i]
+            val nextLine = lines.getOrNull(i + 1)
 
             // Calories
-            if (calories == null && CALORIE_KEYWORDS.any { line.contains(it) }) {
+            if (calories == null && CALORIE_REGEX.containsMatchIn(line)) {
                 calories = extractNumber(line)?.toInt()
                     ?: nextLine?.let { extractNumber(it)?.toInt() }
             }
 
             // Protein
-            if (protein == null && PROTEIN_KEYWORDS.any { line.contains(it) }) {
+            if (protein == null && PROTEIN_REGEX.containsMatchIn(line)) {
                 protein = extractNumber(line)
                     ?: nextLine?.let { extractNumber(it) }
             }
 
             // Carbs
-            if (carbs == null && CARB_KEYWORDS.any { line.contains(it) }) {
+            if (carbs == null && CARB_REGEX.containsMatchIn(line)) {
                 carbs = extractNumber(line)
                     ?: nextLine?.let { extractNumber(it) }
             }
 
             // Fat (check before protein to avoid "total fat" matching "fat" in protein line)
-            if (fat == null && FAT_KEYWORDS.any { line.contains(it) }) {
+            if (fat == null && FAT_REGEX.containsMatchIn(line)) {
                 fat = extractNumber(line)
                     ?: nextLine?.let { extractNumber(it) }
             }
 
             // Serving size
-            if (servingSize == null && SERVING_KEYWORDS.any { line.contains(it) }) {
-                val fullLine = lines[i] // Use original case
-                servingSize = fullLine
+            if (servingSize == null && SERVING_REGEX.containsMatchIn(line)) {
+                servingSize = line
                     .replace(Regex("(?i)(serving size|per serving|portion)\\s*:?\\s*"), "")
                     .trim()
                     .ifBlank { null }
@@ -154,7 +182,9 @@ class OCRScannerService @Inject constructor() {
      * Extract the first numeric value from a text line.
      * Handles: "230", "8g", "5.2 g", "12.0mg", etc.
      */
-    private fun extractNumber(text: String): Float? {
-        return NUMBER_PATTERN.find(text)?.groupValues?.get(1)?.toFloatOrNull()
+    @androidx.annotation.VisibleForTesting
+    internal fun extractNumber(text: String): Float? {
+        val numberMatch = NUMBER_PATTERN.find(text)
+        return numberMatch?.groupValues?.getOrNull(1)?.replace(",", "")?.toFloatOrNull()
     }
 }
