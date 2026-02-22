@@ -23,6 +23,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.Refresh
@@ -316,7 +317,7 @@ fun DashboardScreen(
                     onClick = onFeedClick,
                     modifier = Modifier.align(Alignment.BottomStart).padding(16.dp)
                 ) {
-                    Icon(Icons.Default.List, contentDescription = "Feed")
+                    Icon(Icons.Default.Public, contentDescription = "Feed")
                 }
 
                 // Custom Water Dialog

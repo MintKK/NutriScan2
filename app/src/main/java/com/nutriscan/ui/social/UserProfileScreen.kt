@@ -2,6 +2,7 @@ package com.nutriscan.ui.social
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -66,6 +67,7 @@ fun UserProfileScreen(
     userID: String,
     onBack: () -> Unit,
     onNavigateToFeed: () -> Unit,
+    onNavigateToPost: (String) -> Unit,
     onSignOut: () -> Unit,
     viewModel: UserProfileViewModel = hiltViewModel()
 ) {
@@ -204,9 +206,11 @@ fun UserProfileScreen(
                 items(
                     items = userPosts,
                     key = { it.postID }
-                ) {
-                    post ->
-                    ProfilePostItem(post = post)
+                ) { post ->
+                    ProfilePostItem(
+                        post = post,
+                        onClick = { onNavigateToPost(post.postID) }
+                    )
                 }
 
                 // if user didnt post then show this
@@ -427,11 +431,15 @@ fun ProfileStat(count: Int, label: String) {
 }
 
 @Composable
-fun ProfilePostItem(post: Post) {
+fun ProfilePostItem(
+    post: Post,
+    onClick: () -> Unit
+) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 8.dp, vertical = 4.dp)
+            .clickable { onClick() }
     ) {
         Column {
             Image(

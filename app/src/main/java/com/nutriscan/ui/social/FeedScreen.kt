@@ -26,9 +26,11 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Comment
+import androidx.compose.material.icons.filled.DynamicFeed
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.Login
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
@@ -49,6 +51,10 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -107,9 +113,9 @@ fun FeedScreen(
     LaunchedEffect(authState, selectedTab) {
         if (authState == SocialViewModel.AuthState.AUTHENTICATED) {
             if (selectedTab == 0) {
-                viewModel.loadFollowingFeed()
-            } else {
                 viewModel.loadAllFeed()
+            } else {
+                viewModel.loadFollowingFeed()
             }
         }
     }
@@ -140,19 +146,19 @@ fun FeedScreen(
                                 selected = selectedTab == 0,
                                 onClick = {
                                     selectedTab = 0
-                                    if (authState == SocialViewModel.AuthState.AUTHENTICATED) {
-                                        viewModel.loadFollowingFeed()
-                                    }
+                                    viewModel.loadAllFeed()
                                 },
-                                text = { Text("Following") }
+                                text = { Text("Feed") }
                             )
                             androidx.compose.material3.Tab(
                                 selected = selectedTab == 1,
                                 onClick = {
                                     selectedTab = 1
-                                    viewModel.loadAllFeed()
+                                    if (authState == SocialViewModel.AuthState.AUTHENTICATED) {
+                                        viewModel.loadFollowingFeed()
+                                    }
                                 },
-                                text = { Text("All") }
+                                text = { Text("Following") }
                             )
                         }
                     }
@@ -202,7 +208,7 @@ fun FeedScreen(
         padding ->
 
         // Display posts based on selected tab
-        val posts = if (selectedTab == 0) followingPosts else allPosts
+        val posts = if (selectedTab == 0) allPosts else followingPosts
 
         when {
             // error message exist
@@ -239,15 +245,57 @@ fun FeedScreen(
 
             // not loading
             !isLoading && posts.isEmpty() && authState == SocialViewModel.AuthState.AUTHENTICATED -> {
-                Box(
+                Column(
                     modifier = Modifier.fillMaxSize().padding(padding),
-                    contentAlignment = Alignment.Center
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text(
-                        text = "No posts yet. Follow some users or create your first post!",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    Icon(
+                        imageVector = Icons.Default.DynamicFeed,
+                        contentDescription = null,
+                        modifier = Modifier.size(72.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                     )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    if (selectedTab == 0) {
+                        Text(
+                            text = "Your Feed is Empty",
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Follow some users or create your first post!",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(24.dp))
+                        Button(onClick = onNavigateToCreatePost) {
+                            Icon(Icons.Default.Add, contentDescription = null)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Create Post")
+                        }
+                    } else {
+                        Text(
+                            text = "You're Not Following Anyone Yet",
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Discover new people and get inspired!",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(24.dp))
+                        Button(onClick = onNavigateToSearch) {
+                            Icon(Icons.Default.Search, contentDescription = null)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Discover People")
+                        }
+                    }
                 }
             }
 
@@ -306,7 +354,7 @@ fun PostCard(
     onLikeClick: () -> Unit,
     onCommentClick: () -> Unit,
     onAddComment: (String) -> Unit,
-    onProfileClick: () -> Unit,
+    onProfileClick: (String) -> Unit,
     isLiked: Boolean,
     viewModel: SocialViewModel = hiltViewModel()
 ) {
@@ -325,6 +373,16 @@ fun PostCard(
     val userProfile by viewModel.getUserProfile(post.userID)
         .collectAsState(initial = null)
     val profileImageUrl = userProfile?.profileImageUrl ?: ""
+    
+    val currentUser by viewModel.currentUser.collectAsState()
+    val isAdmin by viewModel.isAdmin.collectAsState()
+    
+    var showMenu by remember { mutableStateOf(false) }
+    var showEditDialog by remember { mutableStateOf(false) }
+    var editCaptionText by remember { mutableStateOf(updatedPost.caption) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    
+    val isOwner = currentUser?.uid == post.userID
 
     Card(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
@@ -344,7 +402,7 @@ fun PostCard(
                     color = MaterialTheme.colorScheme.primaryContainer
                 ) {
                     Box(
-                        modifier = Modifier.fillMaxSize().clickable { onProfileClick() }
+                        modifier = Modifier.fillMaxSize().clickable { onProfileClick(updatedPost.userID) }
                     ) {
                         if (profileImageUrl.isNotEmpty()) {
                             Image(
@@ -386,6 +444,38 @@ fun PostCard(
                         fontSize = 12.sp
                     )
                 }
+
+                if (isOwner || isAdmin) {
+                    Box {
+                        IconButton(onClick = { showMenu = true }) {
+                            Icon(Icons.Default.MoreVert, contentDescription = "Post Options")
+                        }
+                        DropdownMenu(
+                            expanded = showMenu,
+                            onDismissRequest = { showMenu = false }
+                        ) {
+                            if (isOwner) {
+                                DropdownMenuItem(
+                                    text = { Text("Edit") },
+                                    onClick = { 
+                                        showMenu = false
+                                        editCaptionText = updatedPost.caption
+                                        showEditDialog = true
+                                    }
+                                )
+                            }
+                            if (isOwner || isAdmin) {
+                                DropdownMenuItem(
+                                    text = { Text("Delete", color = MaterialTheme.colorScheme.error) },
+                                    onClick = {
+                                        showMenu = false
+                                        showDeleteDialog = true
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
             }
 
             val painter = rememberAsyncImagePainter(
@@ -416,9 +506,15 @@ fun PostCard(
             if (updatedPost.caption.isNotEmpty()) {
                 Text(
                     text = updatedPost.caption,
-                    modifier = Modifier.padding(12.dp)
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    style = MaterialTheme.typography.bodyLarge
                 )
             }
+
+            androidx.compose.material3.HorizontalDivider(
+                modifier = Modifier.padding(horizontal = 16.dp),
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+            )
 
             // nutrition info
             Surface(
@@ -432,8 +528,8 @@ fun PostCard(
                 ) {
                     NutritionInfo("Calories", "${updatedPost.numCalories}")
                     NutritionInfo("Protein", "${updatedPost.numProtein.toInt()}g")
-                    //NutritionInfo("Carbs", "${post.carbs.toInt()}g")
-                    //NutritionInfo("Fat", "${post.fat.toInt()}g")
+                    NutritionInfo("Carbs", "${updatedPost.numCarbs.toInt()}g")
+                    NutritionInfo("Fat", "${updatedPost.numFat.toInt()}g")
                 }
             }
 
@@ -463,7 +559,7 @@ fun PostCard(
                         ) {
                             visibleComments.forEach {
                                 comment ->
-                                CommentItem(comment = comment)
+                                CommentItem(comment = comment, onProfileClick = onProfileClick)
                             }
 
                             if (remainingCount > 0) {
@@ -483,7 +579,7 @@ fun PostCard(
                         // Show only last 2 comments as preview
                         comments.takeLast(n = 2).forEach {
                             comment ->
-                            CommentPreview(comment = comment)
+                            CommentPreview(comment = comment, onProfileClick = onProfileClick)
                         }
                     }
                 }
@@ -502,7 +598,7 @@ fun PostCard(
                     maxLines = 2,
                     shape = RoundedCornerShape(20.dp)
                 )
-                IconButton(
+                TextButton(
                     onClick = {
                         if (newCommentText.isNotBlank()) {
                             onAddComment(newCommentText)
@@ -511,10 +607,10 @@ fun PostCard(
                     },
                     enabled = newCommentText.isNotBlank()
                 ) {
-                    Icon(
-                        Icons.Default.Send,
-                        contentDescription = "Send",
-                        tint = if (newCommentText.isNotBlank())
+                    Text(
+                        "Post",
+                        fontWeight = FontWeight.Bold,
+                        color = if (newCommentText.isNotBlank())
                             MaterialTheme.colorScheme.primary
                         else
                             MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
@@ -551,58 +647,154 @@ fun PostCard(
                         Text("${updatedPost.numComments}")
                     }
                 }
+            }
+        }
+    }
 
-                // share button
-                IconButton(onClick = { /* Share */ }, modifier = Modifier.weight(1f)) {
-                    Icon(
-                        imageVector = Icons.Default.Share,
-                        contentDescription = "Share"
-                    )
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text("Delete Post") },
+            text = { Text("Are you sure you want to delete this post? This action cannot be undone.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.deletePost(post.postID)
+                        showDeleteDialog = false
+                    }
+                ) {
+                    Text("Delete", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false }) {
+                    Text("Cancel")
                 }
             }
+        )
+    }
+
+    if (showEditDialog) {
+        AlertDialog(
+            onDismissRequest = { showEditDialog = false },
+            title = { Text("Edit Post") },
+            text = {
+                OutlinedTextField(
+                    value = editCaptionText,
+                    onValueChange = { editCaptionText = it },
+                    label = { Text("Caption") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.editPost(post.postID, editCaptionText)
+                        showEditDialog = false
+                    }
+                ) {
+                    Text("Save")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showEditDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+}
+
+@Composable
+fun CommentPreview(comment: Comment, onProfileClick: (String) -> Unit) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+        shape = RoundedCornerShape(12.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Surface(
+                modifier = Modifier.size(24.dp).clip(CircleShape).clickable { onProfileClick(comment.userID) },
+                color = MaterialTheme.colorScheme.primaryContainer
+            ) {
+                if (comment.userProfileImageUrl.isNotEmpty()) {
+                    Image(
+                        painter = rememberAsyncImagePainter(comment.userProfileImageUrl),
+                        contentDescription = "Profile",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    Icon(Icons.Default.Person, contentDescription = null, modifier = Modifier.padding(4.dp))
+                }
+            }
+
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = comment.username,
+                fontWeight = FontWeight.Bold,
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.clickable { onProfileClick(comment.userID) }
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = comment.content,
+                fontSize = 12.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
     }
 }
 
 @Composable
-fun CommentPreview(comment: Comment) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 4.dp)
+fun CommentItem(comment: Comment, onProfileClick: (String) -> Unit) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+        shape = RoundedCornerShape(12.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)
     ) {
-        Text(
-            text = comment.username,
-            fontWeight = FontWeight.Bold,
-            fontSize = 12.sp
-        )
-        Spacer(modifier = Modifier.width(4.dp))
-        Text(
-            text = comment.content,
-            fontSize = 12.sp,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
-    }
-}
-
-@Composable
-fun CommentItem(comment: Comment) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 4.dp)
-    ) {
-        Text(
-            text = comment.username,
-            fontWeight = FontWeight.Bold,
-            fontSize = 13.sp
-        )
-        Spacer(modifier = Modifier.width(4.dp))
-        Text(
-            text = comment.content,
-            fontSize = 13.sp
-        )
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.Top
+        ) {
+            Surface(
+                modifier = Modifier.size(32.dp).clip(CircleShape).clickable { onProfileClick(comment.userID) },
+                color = MaterialTheme.colorScheme.primaryContainer
+            ) {
+                if (comment.userProfileImageUrl.isNotEmpty()) {
+                    Image(
+                        painter = rememberAsyncImagePainter(comment.userProfileImageUrl),
+                        contentDescription = "Profile",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    Icon(Icons.Default.Person, contentDescription = null, modifier = Modifier.padding(6.dp))
+                }
+            }
+            
+            Spacer(modifier = Modifier.width(12.dp))
+            
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = comment.username,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.clickable { onProfileClick(comment.userID) }
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = comment.content,
+                    fontSize = 13.sp
+                )
+            }
+        }
     }
 }
 

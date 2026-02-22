@@ -25,6 +25,7 @@ import com.nutriscan.ui.diary.FoodDiaryScreen
 import com.nutriscan.ui.social.FeedScreen
 import com.nutriscan.ui.social.UserProfileScreen
 import com.nutriscan.ui.social.CreatePostScreen
+import com.nutriscan.ui.social.PostDetailScreen
 import com.nutriscan.ui.social.SearchUsersScreen
 
 /**
@@ -210,12 +211,26 @@ fun NutriScanNavHost(
                 userID = userID,
                 onBack = { navController.popBackStack() },
                 onNavigateToFeed = { navController.popBackStack(Screen.Feed.route, false) },
+                onNavigateToPost = { postID -> 
+                    navController.navigate(Screen.PostDetails.passPostID(postID))
+                },
                 onSignOut = { navController.popBackStack(Screen.Feed.route, false) }
             )
         }
 
         composable(Screen.CreatePost.route) {
             CreatePostScreen(
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Screen.PostDetails.route) { backStackEntry ->
+            val postID = backStackEntry.arguments?.getString("postID") ?: ""
+            PostDetailScreen(
+                postID = postID,
+                onNavigateToProfile = { userID -> 
+                    navController.navigate(Screen.UserProfile.passUserID(userID))
+                },
                 onBack = { navController.popBackStack() }
             )
         }

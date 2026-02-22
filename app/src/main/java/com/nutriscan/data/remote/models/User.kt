@@ -10,5 +10,6 @@ data class User(
     val numFollowing: Int = 0,
     val numPosts: Int = 0,
     val created: Long = System.currentTimeMillis(),
-    val email: String = ""
+    val email: String = "",
+    val role: String = "user"
 )

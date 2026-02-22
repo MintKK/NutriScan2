@@ -416,7 +416,8 @@ fun ConfirmationSheet(
     onCancel: () -> Unit,
     onNotCorrect: () -> Unit = {}  // For "Not this food?" option
 ) {
-    var customGrams by remember { mutableStateOf(portionGrams.toString()) }
+    var customGrams by remember { mutableStateOf(if (PortionPreset.entries.any { it.grams == portionGrams }) "" else portionGrams.toString()) }
+    var isCustomPortionSelected by remember { mutableStateOf(PortionPreset.entries.none { it.grams == portionGrams }) }
     
     Column(
         modifier = Modifier
@@ -506,26 +507,47 @@ fun ConfirmationSheet(
         ) {
             items(PortionPreset.entries) { preset ->
                 FilterChip(
-                    selected = portionGrams == preset.grams,
-                    onClick = { onPresetSelect(preset) },
+                    selected = portionGrams == preset.grams && !isCustomPortionSelected,
+                    onClick = { 
+                        if (portionGrams == preset.grams && !isCustomPortionSelected) {
+                            isCustomPortionSelected = true
+                        } else {
+                            isCustomPortionSelected = false
+                            onPresetSelect(preset) 
+                        }
+                    },
                     label = { Text(preset.displayName) }
+                )
+            }
+            
+            item {
+                FilterChip(
+                    selected = isCustomPortionSelected,
+                    onClick = {
+                        isCustomPortionSelected = true
+                        customGrams.toIntOrNull()?.let { onPortionChange(it) }
+                    },
+                    label = { Text("Custom") }
                 )
             }
         }
         
         // Custom grams input
         OutlinedTextField(
-            value = customGrams,
+            value = if (isCustomPortionSelected) customGrams else portionGrams.toString(),
             onValueChange = { 
-                customGrams = it
-                it.toIntOrNull()?.let { grams -> onPortionChange(grams) }
+                if (isCustomPortionSelected) {
+                    customGrams = it
+                    it.toIntOrNull()?.let { grams -> onPortionChange(grams) }
+                }
             },
             label = { Text("Custom (grams)") },
             keyboardOptions = KeyboardOptions(
                 keyboardType = KeyboardType.Number,
                 imeAction = ImeAction.Done
             ),
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            enabled = isCustomPortionSelected
         )
         
         // Nutrition Summary

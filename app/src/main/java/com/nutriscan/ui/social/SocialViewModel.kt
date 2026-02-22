@@ -60,6 +60,9 @@ class SocialViewModel @Inject constructor(
     val currentUser: StateFlow<User?> = socialRepository.getCurrentUser()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
+    private val _isAdmin = MutableStateFlow(false)
+    val isAdmin: StateFlow<Boolean> = _isAdmin.asStateFlow()
+
     // sign in and out
     private val _isSignInSuccessful = MutableStateFlow(false)
     val isSignInSuccessful: StateFlow<Boolean> = _isSignInSuccessful.asStateFlow()
@@ -184,6 +187,8 @@ class SocialViewModel @Inject constructor(
                 foodName = foodName,
                 calories = calories,
                 protein = protein,
+                carbs = 0f,
+                fat = 0f,
                 imageUri = imageUri
             ).onFailure {
                 e ->
@@ -208,6 +213,36 @@ class SocialViewModel @Inject constructor(
                 .onFailure {
                     e ->
                     _error.value = e.message
+                }
+        }
+    }
+
+    fun deletePost(postID: String) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            socialRepository.deletePost(postID)
+                .onSuccess {
+                    // Update local lists immediately if desired, 
+                    // though real-time listener might handle this
+                    _isLoading.value = false
+                }
+                .onFailure { e ->
+                    _error.value = "Failed to delete post: ${e.message}"
+                    _isLoading.value = false
+                }
+        }
+    }
+
+    fun editPost(postID: String, newCaption: String) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            socialRepository.editPost(postID, newCaption)
+                .onSuccess {
+                    _isLoading.value = false
+                }
+                .onFailure { e ->
+                    _error.value = "Failed to edit post: ${e.message}"
+                    _isLoading.value = false
                 }
         }
     }
@@ -437,10 +472,18 @@ class SocialViewModel @Inject constructor(
                         _error.value?.contains("sign in") == true) {
                         _error.value = null
                     }
+                    
+                    // fetch profile to determine role
+                    launch {
+                        socialRepository.getUserProfileFlow(user.uid).collect { profile ->
+                            _isAdmin.value = profile?.role == "admin"
+                        }
+                    }
 
                     loadFeed()
                 } else {
                     _feedPosts.value = emptyList()
+                    _isAdmin.value = false
                     _error.value = "Please sign in to view the feed"
                 }
             }
@@ -473,7 +516,8 @@ class SocialViewModel @Inject constructor(
                             bio = "",
                             profileImageUrl = "",
                             email = currentUser.email ?: "",
-                            created = System.currentTimeMillis()
+                            created = System.currentTimeMillis(),
+                            role = "admin" // grant admin role for Test Devs
                         )
                         socialRepository.createUserProfile(anonymousUser)
                     }

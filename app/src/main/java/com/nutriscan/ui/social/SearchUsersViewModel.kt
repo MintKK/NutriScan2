@@ -25,10 +25,32 @@ class SearchUsersViewModel @Inject constructor(
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
 
+    init {
+        loadDefaultUsers()
+    }
+
+    private fun loadDefaultUsers() {
+        viewModelScope.launch {
+            _isLoading.value = true
+            val result = socialRepository.getRandomUsers(limit = 20)
+            result.onSuccess { users ->
+                _searchResults.value = users
+                _error.value = null
+            }.onFailure { e ->
+                _error.value = "Failed to load users: ${e.message}"
+                // Keep existing results if any, or clear depending on preference
+                if (_searchResults.value.isEmpty()) {
+                    _searchResults.value = emptyList()
+                }
+            }
+            _isLoading.value = false
+        }
+    }
+
     fun searchUsers(query: String) {
-        // minimum 2 characters to search
+        // minimum 2 characters to search, otherwise show defaults
         if (query.length < 2) {
-            _searchResults.value = emptyList()
+            loadDefaultUsers()
             return
         }
 

@@ -113,7 +113,7 @@ class UserProfileViewModel @Inject constructor(
     private fun loadUserPosts() {
         viewModelScope.launch {
             try {
-                socialRepository.getUserPosts(userID = userID)
+                socialRepository.getUserPostsRealtime(userID = userID)
                     .catch {
                         e ->
                         _error.value = "Failed to load posts: ${e.message}"

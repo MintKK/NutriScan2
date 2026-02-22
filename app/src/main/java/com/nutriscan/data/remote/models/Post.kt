@@ -10,6 +10,8 @@ data class Post(
     val foodName: String = "",
     val numCalories: Int = 0,
     val numProtein: Float = 0f,
+    val numCarbs: Float = 0f,
+    val numFat: Float = 0f,
     val numLikes: Int = 0,
     val numComments: Int = 0,
     val comments: List<String> = emptyList(),

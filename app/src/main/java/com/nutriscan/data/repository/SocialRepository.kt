@@ -111,6 +111,8 @@ class SocialRepository @Inject constructor(
         foodName: String,
         calories: Int,
         protein: Float,
+        carbs: Float,
+        fat: Float,
         imageUri: Uri
     ): Result<String> {
         return try {
@@ -130,7 +132,9 @@ class SocialRepository @Inject constructor(
                 foodImageUrl = imageUrl,
                 foodName = foodName,
                 numCalories = calories,
-                numProtein = protein
+                numProtein = protein,
+                numCarbs = carbs,
+                numFat = fat
             )
 
             // probably have to call this calculation in real time at intervals e.g. every hour
@@ -146,6 +150,78 @@ class SocialRepository @Inject constructor(
             Result.success(value = post.postID)
         } catch (e: Exception) {
             Result.failure(exception = e)
+        }
+    }
+
+    suspend fun deletePost(postID: String): Result<Boolean> {
+        return try {
+            val currentUser = auth.currentUser ?: throw Exception("User not authenticated")
+            
+            // Validate post exists and permission
+            val postSnapshot = postsCollection.document(postID).get().await()
+            if (!postSnapshot.exists()) {
+                throw Exception("Post not found")
+            }
+            
+            val post = postSnapshot.toObject<Post>() ?: throw Exception("Failed to parse post")
+            val userProfile = getUserProfile(currentUser.uid).getOrThrow() ?: throw Exception("User profile not found")
+            
+            // Check if user is the poster or an admin
+            if (post.userID != currentUser.uid && userProfile.role != "admin") {
+                throw Exception("Not authorized to delete this post")
+            }
+
+            // Perform deletion in batch/transaction
+            firestore.runTransaction { transaction ->
+                val userRef = usersCollection.document(post.userID)
+                
+                // Delete the post
+                transaction.delete(postsCollection.document(postID))
+                
+                // Decrement user's post count
+                transaction.update(userRef, "numPosts", FieldValue.increment(-1))
+                
+                true
+            }.await()
+            
+            // Note: We might also want to clean up likes and comments associated with the post here 
+            // or use Firebase Cloud Functions for cleanup.
+            
+            Result.success(true)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+    
+    suspend fun editPost(postID: String, newCaption: String): Result<Boolean> {
+        return try {
+            val currentUser = auth.currentUser ?: throw Exception("User not authenticated")
+            
+            // Validate post exists and permission
+            val postSnapshot = postsCollection.document(postID).get().await()
+            if (!postSnapshot.exists()) {
+                throw Exception("Post not found")
+            }
+            
+            val post = postSnapshot.toObject<Post>() ?: throw Exception("Failed to parse post")
+            
+            // Only the original poster can edit
+            if (post.userID != currentUser.uid) {
+                throw Exception("Not authorized to edit this post")
+            }
+
+            postsCollection.document(postID)
+                .update(
+                    mapOf(
+                        "caption" to newCaption,
+                        "updated" to System.currentTimeMillis()
+                    )
+                )
+                .await()
+                
+            Result.success(true)
+        } catch (e: Exception) {
+            Result.failure(e)
         }
     }
 
@@ -705,6 +781,19 @@ class SocialRepository @Inject constructor(
         }
     }
 
+    suspend fun getRandomUsers(limit: Int = 20): Result<List<User>> {
+        return try {
+            val snapshot = usersCollection
+                .limit(limit.toLong())
+                .get()
+                .await()
+            val users = snapshot.toObjects<User>()
+            Result.success(users)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     // trending score
     private fun calculateTrendingScore(likes: Int, comments: Int, timestamp: Long): Double {
         // algorithm calculation can be changed
@@ -770,6 +859,45 @@ class SocialRepository @Inject constructor(
             throw Exception("Firestore connection timeout")
         } catch (e: Exception) {
             throw Exception("Firestore connection failed: ${e.message}")
+        }
+    }
+
+    suspend fun getPostById(postId: String): Result<Post?> {
+        return try {
+            val snapshot = postsCollection.document(postId).get().await()
+            if (snapshot.exists()) {
+                Result.success(snapshot.toObject(Post::class.java))
+            } else {
+                Result.success(null)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun toggleLike(postId: String): Result<Boolean> {
+        return try {
+            val currentUser = auth.currentUser ?: throw Exception("Not authenticated")
+            val postRef = postsCollection.document(postId)
+            
+            firestore.runTransaction { transaction ->
+                val snapshot = transaction.get(postRef)
+                if (!snapshot.exists()) {
+                    throw Exception("Post not found")
+                }
+                
+                val post = snapshot.toObject(Post::class.java)!!
+                val currentLikes = post.numLikes
+                
+                // For simplicity assuming we just increment/decrement for now, 
+                // pending full tracking Array of liking userIDs in Post Model.
+                // We'll increment to simulate toggling for testing functionality.
+                transaction.update(postRef, "numLikes", currentLikes + 1)
+                true
+            }.await()
+            Result.success(true)
+        } catch (e: Exception) {
+            Result.failure(e)
         }
     }
 }
