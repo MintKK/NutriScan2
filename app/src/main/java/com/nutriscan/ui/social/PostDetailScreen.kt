@@ -15,6 +15,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -35,6 +36,16 @@ fun PostDetailScreen(
     val isLoading by viewModel.isLoading.collectAsState()
     val error by viewModel.error.collectAsState()
     val isLiked by viewModel.isLiked.collectAsState()
+
+    LaunchedEffect(viewModel.eventFlow) {
+        viewModel.eventFlow.collect { event ->
+            when (event) {
+                is PostDetailEvent.Deleted -> {
+                    post?.let { onNavigateToProfile(it.userID) }
+                }
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -75,6 +86,7 @@ fun PostDetailScreen(
                                 // but we must provide the lambda
                             },
                             onProfileClick = { onNavigateToProfile(it) },
+                            onDeleteClick = { viewModel.deletePost() },
                             isLiked = isLiked
                         )
                     }

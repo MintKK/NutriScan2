@@ -336,6 +336,7 @@ fun FeedScreen(
                                 onProfileClick = {
                                     onNavigateToProfile(post.userID)
                                 },
+                                onDeleteClick = { viewModel.deletePost(it) },
                                 isLiked = isLiked
                             )
                         }
@@ -353,6 +354,7 @@ fun PostCard(
     onCommentClick: () -> Unit,
     onAddComment: (String) -> Unit,
     onProfileClick: (String) -> Unit,
+    onDeleteClick: (String) -> Unit,
     isLiked: Boolean,
     viewModel: SocialViewModel = hiltViewModel()
 ) {
@@ -657,7 +659,7 @@ fun PostCard(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        viewModel.deletePost(post.postID)
+                        onDeleteClick(post.postID)
                         showDeleteDialog = false
                     }
                 ) {

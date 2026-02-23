@@ -7,13 +7,20 @@ import com.nutriscan.data.remote.models.Post
 import com.nutriscan.data.remote.models.User
 import com.nutriscan.data.repository.SocialRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+
+sealed class PostDetailEvent {
+    object Deleted : PostDetailEvent()
+}
 
 @HiltViewModel
 class PostDetailViewModel @Inject constructor(
@@ -37,6 +44,9 @@ class PostDetailViewModel @Inject constructor(
 
     private val _error = MutableStateFlow<String?>(null)
     val error = _error.asStateFlow()
+
+    private val _eventFlow = MutableSharedFlow<PostDetailEvent>()
+    val eventFlow: SharedFlow<PostDetailEvent> = _eventFlow.asSharedFlow()
     
     val isLiked: StateFlow<Boolean> = repository.isPostLikedByUser(postID)
         .stateIn(
@@ -102,6 +112,21 @@ class PostDetailViewModel @Inject constructor(
             } finally {
                 isLiking = false
             }
+        }
+    }
+
+    fun deletePost() {
+        viewModelScope.launch {
+            _isLoading.value = true
+            repository.deletePost(postID)
+                .onSuccess {
+                    _isLoading.value = false
+                    _eventFlow.emit(PostDetailEvent.Deleted)
+                }
+                .onFailure { e ->
+                    _error.value = "Failed to delete post: ${e.message}"
+                    _isLoading.value = false
+                }
         }
     }
 }
