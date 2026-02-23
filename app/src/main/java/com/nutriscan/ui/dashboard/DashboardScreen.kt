@@ -44,7 +44,11 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -100,12 +104,28 @@ fun DashboardScreen(
     val waterGoalMl by viewModel.waterGoalMl.collectAsState()
     val stepGoal by viewModel.stepGoal.collectAsState()
     val achievementState by viewModel.achievementState.collectAsState()
-    val coachInsights by viewModel.coachInsights.collectAsState()
+    val canShowConfettiToday by viewModel.canShowConfettiToday.collectAsState()
     val newlyEarnedBadge by viewModel.newlyEarnedBadge.collectAsState()
+    val coachInsights by viewModel.coachInsights.collectAsState()
+    
+    var showFullScreenConfetti by remember { mutableStateOf(false) }
+    var previouslyMetGoal by remember { mutableStateOf(false) }
+    var initializedWater by remember { mutableStateOf(false) }
     
     // Refresh coach insights when data changes
     LaunchedEffect(netCalories, todayWaterMl, todayMacros, calorieGoal) {
         viewModel.refreshCoachInsights()
+    }
+
+    LaunchedEffect(todayWaterMl, waterGoalMl) {
+        if (waterGoalMl > 0) {
+            val isMetNow = todayWaterMl >= waterGoalMl
+            if (initializedWater && isMetNow && !previouslyMetGoal && canShowConfettiToday) {
+                // Don't show full screen immediately anymore. Wait for the AchievementModal "Awesome" button.
+            }
+            previouslyMetGoal = isMetNow
+            initializedWater = true
+        }
     }
 
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
@@ -473,11 +493,15 @@ fun DashboardScreen(
                 }
                 
                 // Badge Celebration Dialog
+                val context = LocalContext.current
+                val view = LocalView.current
+                var haptic = LocalHapticFeedback.current
+
                 if (newlyEarnedBadge != null) {
                     AlertDialog(
                         onDismissRequest = { viewModel.dismissBadgeCelebration() },
                         title = {
-                            Text("🏆 Badge Earned!", fontWeight = FontWeight.Bold)
+                            Text("Badge Earned!")
                         },
                         text = {
                             Column(
@@ -503,7 +527,25 @@ fun DashboardScreen(
                             }
                         },
                         confirmButton = {
-                            Button(onClick = { viewModel.dismissBadgeCelebration() }) {
+                            Button(onClick = { 
+                                viewModel.dismissBadgeCelebration() 
+                                
+                                if (canShowConfettiToday && todayWaterMl >= waterGoalMl) {
+                                    viewModel.markConfettiShownToday()
+                                    showFullScreenConfetti = true
+                                    
+                                    // Vibrate device
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    
+                                    // Play Sound Effect
+                                    view.playSoundEffect(android.view.SoundEffectConstants.CLICK)
+
+                                    scope.launch {
+                                        kotlinx.coroutines.delay(4000)
+                                        showFullScreenConfetti = false
+                                    }
+                                }
+                            }) {
                                 Text("Awesome!")
                             }
                         }
@@ -613,6 +655,10 @@ fun DashboardScreen(
                             }
                         }
                     )
+                }
+
+                if (showFullScreenConfetti) {
+                    FullScreenConfetti()
                 }
             }
         }

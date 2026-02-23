@@ -27,7 +27,14 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import javax.inject.Inject
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringPreferencesKey
 
 @HiltViewModel
 class DashboardViewModel @Inject constructor(
@@ -35,7 +42,8 @@ class DashboardViewModel @Inject constructor(
     private val stepRepository: StepRepository,
     private val waterRepository: WaterRepository,
     private val achievementRepository: AchievementRepository,
-    private val aiCoachRepository: AICoachRepository
+    private val aiCoachRepository: AICoachRepository,
+    private val dataStore: DataStore<Preferences>
 ) : ViewModel() {
     
     // User's calorie goal (can be made configurable via DataStore)
@@ -171,27 +179,35 @@ class DashboardViewModel @Inject constructor(
     fun addWater(amountMl: Int) {
         viewModelScope.launch {
             waterRepository.logWater(amountMl)
+            refreshCoachInsights()
+            refreshAchievements()
+            checkConfettiStatus()
         }
     }
     
     fun undoWater() {
         viewModelScope.launch {
             waterRepository.undoLastEntry()
+            refreshAchievements()
         }
     }
     
     fun setWaterGoal(goalMl: Int) {
         viewModelScope.launch {
             waterRepository.setWaterGoal(goalMl)
+            refreshAchievements()
         }
     }
     
     // ============ ACHIEVEMENTS ============
     
-    private val _achievementState = MutableStateFlow(
-        AchievementState(emptyList(), emptyList())
-    )
+    private val _achievementState = MutableStateFlow(AchievementState(emptyList(), emptyList()))
     val achievementState: StateFlow<AchievementState> = _achievementState.asStateFlow()
+
+    private val CONFETTI_DATE = stringPreferencesKey("last_confetti_date")
+    
+    private val _canShowConfettiToday = MutableStateFlow(false)
+    val canShowConfettiToday: StateFlow<Boolean> = _canShowConfettiToday.asStateFlow()
     
     // Track newly-earned badges for one-time celebration
     private val _newlyEarnedBadge = MutableStateFlow<Badge?>(null)
@@ -200,9 +216,30 @@ class DashboardViewModel @Inject constructor(
     fun dismissBadgeCelebration() {
         _newlyEarnedBadge.value = null
     }
+
+    private fun checkConfettiStatus() {
+        viewModelScope.launch {
+            val todayDateString = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+            dataStore.data.collect { prefs ->
+                val lastDate = prefs[CONFETTI_DATE]
+                _canShowConfettiToday.value = (lastDate != todayDateString)
+            }
+        }
+    }
+
+    fun markConfettiShownToday() {
+        viewModelScope.launch {
+            val todayDateString = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+            dataStore.edit { prefs ->
+                prefs[CONFETTI_DATE] = todayDateString
+            }
+            _canShowConfettiToday.value = false
+        }
+    }
     
     init {
         refreshAchievements()
+        checkConfettiStatus()
     }
     
     fun refreshAchievements() {
