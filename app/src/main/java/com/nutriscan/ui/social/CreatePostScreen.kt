@@ -663,8 +663,9 @@ fun CreatePostScreen(
             CandidateSelectionSheet(
                 candidates = matchResults,
                 onCandidateSelected = { viewModel.selectFood(it) },
-                onManualSearch = { /* To do later if needed */ },
-                onCancel = { viewModel.resetState() }
+                onManualSearch = { viewModel.resetState() },
+                onCancel = { viewModel.resetState() },
+                showSearchButton = false
             )
         }
     }

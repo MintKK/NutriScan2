@@ -99,7 +99,9 @@ fun FeedScreen(
     val followingPosts by viewModel.followingPosts.collectAsState()
     val allPosts by viewModel.allPosts.collectAsState()
     //val posts by viewModel.feedPosts.collectAsState()
-    val isLoading by viewModel.isLoading.collectAsState()
+    val isLoadingAll by viewModel.isLoadingAll.collectAsState()
+    val isLoadingFollowing by viewModel.isLoadingFollowing.collectAsState()
+    val isLoading = if (selectedTab == 0) isLoadingAll else isLoadingFollowing
     val currentUser by viewModel.currentUser.collectAsState()
     val error by viewModel.error.collectAsState()
     val firebaseAvailable by viewModel.firebaseAvailable.collectAsState()
@@ -146,7 +148,6 @@ fun FeedScreen(
                                 selected = selectedTab == 0,
                                 onClick = {
                                     selectedTab = 0
-                                    viewModel.loadAllFeed()
                                 },
                                 text = { Text("Feed") }
                             )
@@ -154,9 +155,6 @@ fun FeedScreen(
                                 selected = selectedTab == 1,
                                 onClick = {
                                     selectedTab = 1
-                                    if (authState == SocialViewModel.AuthState.AUTHENTICATED) {
-                                        viewModel.loadFollowingFeed()
-                                    }
                                 },
                                 text = { Text("Following") }
                             )
@@ -887,7 +885,7 @@ fun ErrorScreen(
                         viewModel.signInForTesting()
                     }
                 ) {
-                    Text("Test Sign In (Dev Only)")
+                    Text("Guest Account")
                 }
             }
         }

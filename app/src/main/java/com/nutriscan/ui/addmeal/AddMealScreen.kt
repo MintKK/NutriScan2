@@ -419,6 +419,14 @@ fun ConfirmationSheet(
     var customGrams by remember { mutableStateOf(if (PortionPreset.entries.any { it.grams == portionGrams }) "" else portionGrams.toString()) }
     var isCustomPortionSelected by remember { mutableStateOf(PortionPreset.entries.none { it.grams == portionGrams }) }
     
+    // Validation: either a preset is selected (via portionGrams matching a preset) 
+    // or custom is selected and customGrams is a valid positive number.
+    val isPortionValid = if (!isCustomPortionSelected) {
+        PortionPreset.entries.any { it.grams == portionGrams }
+    } else {
+        customGrams.toIntOrNull()?.let { it > 0 } ?: false
+    }
+    
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -537,11 +545,17 @@ fun ConfirmationSheet(
             value = if (isCustomPortionSelected) customGrams else portionGrams.toString(),
             onValueChange = { 
                 if (isCustomPortionSelected) {
-                    customGrams = it
-                    it.toIntOrNull()?.let { grams -> onPortionChange(grams) }
+                    // Force numbers only
+                    val filtered = it.filter { char -> char.isDigit() }
+                    customGrams = filtered
+                    filtered.toIntOrNull()?.let { grams -> onPortionChange(grams) }
                 }
             },
             label = { Text("Custom (grams)") },
+            isError = isCustomPortionSelected && !isPortionValid,
+            supportingText = if (isCustomPortionSelected && !isPortionValid) {
+                { Text("Enter a valid weight in grams") }
+            } else null,
             keyboardOptions = KeyboardOptions(
                 keyboardType = KeyboardType.Number,
                 imeAction = ImeAction.Done
@@ -642,7 +656,7 @@ fun ConfirmationSheet(
             Button(
                 onClick = onConfirm,
                 modifier = Modifier.weight(1f),
-                enabled = !isLogging
+                enabled = !isLogging && isPortionValid
             ) {
                 if (isLogging) {
                     CircularProgressIndicator(
@@ -1130,13 +1144,14 @@ fun CandidateSelectionSheet(
     candidates: List<FoodMatchResult>,
     onCandidateSelected: (FoodMatchResult) -> Unit,
     onManualSearch: () -> Unit,
-    onCancel: () -> Unit
+    onCancel: () -> Unit,
+    showSearchButton: Boolean = true
 ) {
     val bestConfidence = candidates.firstOrNull()?.confidence ?: 0f
     
     Column(
         modifier = Modifier
-            .fillMaxSize()
+            .fillMaxWidth()
             .padding(16.dp)
     ) {
         // Header
@@ -1293,13 +1308,15 @@ fun CandidateSelectionSheet(
                 Text("Cancel")
             }
             
-            OutlinedButton(
-                onClick = onManualSearch,
-                modifier = Modifier.weight(1f)
-            ) {
-                Icon(Icons.Default.Search, null)
-                Spacer(modifier = Modifier.width(4.dp))
-                Text("Search")
+            if (showSearchButton) {
+                OutlinedButton(
+                    onClick = onManualSearch,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(Icons.Default.Search, null)
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Search")
+                }
             }
         }
     }
@@ -1318,7 +1335,7 @@ fun BarcodeScannerLauncher(
 ) {
     val context = LocalContext.current
     var scannerLaunched by remember { mutableStateOf(false) }
-    var showOptions by remember { mutableStateOf(false) }
+    var showOptions by remember { mutableStateOf(true) } // Start with options
     var galleryError by remember { mutableStateOf<String?>(null) }
     var isDecodingImage by remember { mutableStateOf(false) }
 
@@ -1354,24 +1371,7 @@ fun BarcodeScannerLauncher(
         }
     }
 
-    // Launch live scanner automatically on first composition
-    LaunchedEffect(Unit) {
-        if (!scannerLaunched) {
-            scannerLaunched = true
-            val scanner = GmsBarcodeScanning.getClient(context)
-            scanner.startScan()
-                .addOnSuccessListener { barcode ->
-                    barcode.rawValue?.let { onBarcodeScanned(it) }
-                        ?: run { showOptions = true }
-                }
-                .addOnCanceledListener {
-                    showOptions = true
-                }
-                .addOnFailureListener {
-                    showOptions = true
-                }
-        }
-    }
+    // Live scanner auto-launch removed - user must choose Camera or Gallery first
 
     // UI: Loading / Error / Options
     Box(
@@ -1442,6 +1442,32 @@ fun BarcodeScannerLauncher(
                         fontWeight = FontWeight.Bold
                     )
 
+                    // OpenFoodFacts Disclaimer
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Default.Info,
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp),
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(Modifier.width(12.dp))
+                            Text(
+                                "Only products found in the OpenFoodFacts database will return results.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
                     if (galleryError != null) {
                         Text(
                             galleryError!!,
@@ -1451,7 +1477,6 @@ fun BarcodeScannerLauncher(
                         )
                     }
 
-                    Spacer(Modifier.height(8.dp))
 
                     // Live scanner button
                     Button(
@@ -1662,8 +1687,6 @@ fun OCRLabelScanner(
                         Text("Scan with Camera")
                     }
 
-                    Spacer(modifier = Modifier.height(12.dp))
-
                     // Pick from gallery
                     OutlinedButton(
                         onClick = { galleryLauncher.launch("image/*") },
@@ -1673,8 +1696,6 @@ fun OCRLabelScanner(
                         Spacer(Modifier.width(8.dp))
                         Text("Choose from Gallery")
                     }
-
-                    Spacer(modifier = Modifier.height(12.dp))
 
                     // Cancel
                     TextButton(onClick = onCancel) {

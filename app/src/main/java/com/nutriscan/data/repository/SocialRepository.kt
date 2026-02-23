@@ -878,23 +878,42 @@ class SocialRepository @Inject constructor(
     suspend fun toggleLike(postId: String): Result<Boolean> {
         return try {
             val currentUser = auth.currentUser ?: throw Exception("Not authenticated")
+            val likeDocId = "${postId}_${currentUser.uid}"
+            val likeRef = likesCollection.document(likeDocId)
             val postRef = postsCollection.document(postId)
-            
-            firestore.runTransaction { transaction ->
-                val snapshot = transaction.get(postRef)
-                if (!snapshot.exists()) {
-                    throw Exception("Post not found")
-                }
-                
-                val post = snapshot.toObject(Post::class.java)!!
-                val currentLikes = post.numLikes
-                
-                // For simplicity assuming we just increment/decrement for now, 
-                // pending full tracking Array of liking userIDs in Post Model.
-                // We'll increment to simulate toggling for testing functionality.
-                transaction.update(postRef, "numLikes", currentLikes + 1)
-                true
-            }.await()
+
+            // Check if user already liked the post
+            val likeSnapshot = likeRef.get().await()
+
+            if (likeSnapshot.exists()) {
+                // Already liked → unlike: delete the like doc and decrement
+                firestore.runTransaction { transaction ->
+                    val postSnapshot = transaction.get(postRef)
+                    if (!postSnapshot.exists()) {
+                        throw Exception("Post not found")
+                    }
+                    transaction.delete(likeRef)
+                    transaction.update(postRef, "numLikes", FieldValue.increment(-1))
+                    true
+                }.await()
+            } else {
+                // Not yet liked → like: create the like doc and increment
+                val like = Like(
+                    likeID = likeDocId,
+                    postID = postId,
+                    userID = currentUser.uid
+                )
+                firestore.runTransaction { transaction ->
+                    val postSnapshot = transaction.get(postRef)
+                    if (!postSnapshot.exists()) {
+                        throw Exception("Post not found")
+                    }
+                    transaction.set(likeRef, like)
+                    transaction.update(postRef, "numLikes", FieldValue.increment(1))
+                    true
+                }.await()
+            }
+
             Result.success(true)
         } catch (e: Exception) {
             Result.failure(e)

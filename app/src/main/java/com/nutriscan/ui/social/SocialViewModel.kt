@@ -13,6 +13,8 @@ import com.nutriscan.data.remote.models.User
 import com.nutriscan.data.remote.models.Comment
 import com.nutriscan.data.repository.SocialRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -42,6 +44,15 @@ class SocialViewModel @Inject constructor(
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+
+    private val _isLoadingAll = MutableStateFlow(false)
+    val isLoadingAll: StateFlow<Boolean> = _isLoadingAll.asStateFlow()
+
+    private val _isLoadingFollowing = MutableStateFlow(false)
+    val isLoadingFollowing: StateFlow<Boolean> = _isLoadingFollowing.asStateFlow()
+
+    private var allFeedJob: Job? = null
+    private var followingFeedJob: Job? = null
 
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
@@ -107,6 +118,8 @@ class SocialViewModel @Inject constructor(
                         _isLoading.value = false
                         _error.value = null
                     }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _error.value = "Error loading feed: ${e.message}"
                 _isLoading.value = false
@@ -115,16 +128,17 @@ class SocialViewModel @Inject constructor(
     }
 
     fun loadFollowingFeed() {
-        viewModelScope.launch {
+        followingFeedJob?.cancel()
+        followingFeedJob = viewModelScope.launch {
             val currentUserID = auth.currentUser?.uid
             if (currentUserID == null) {
                 _error.value = "Please sign in to view following feed"
-                _isLoading.value = false
+                _isLoadingFollowing.value = false
 
                 return@launch
             }
 
-            _isLoading.value = true
+            _isLoadingFollowing.value = true
             _error.value = null
 
             try {
@@ -132,40 +146,45 @@ class SocialViewModel @Inject constructor(
                     .catch {
                         e ->
                         _error.value = "Failed to load feed: ${e.message}"
-                        _isLoading.value = false
+                        _isLoadingFollowing.value = false
                     }
                     .collect {
                         posts ->
                         _followingPosts.value = posts
-                        _isLoading.value = false
+                        _isLoadingFollowing.value = false
                         _error.value = null
                     }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _error.value = "Error loading feed: ${e.message}"
-                _isLoading.value = false
+                _isLoadingFollowing.value = false
             }
         }
     }
 
     fun loadAllFeed() {
-        viewModelScope.launch {
-            _isLoading.value = true
+        allFeedJob?.cancel()
+        allFeedJob = viewModelScope.launch {
+            _isLoadingAll.value = true
             try {
                 socialRepository.getAllPosts()
                     .catch {
                         e ->
                         _error.value = "Failed to load posts: ${e.message}"
-                        _isLoading.value = false
+                        _isLoadingAll.value = false
                     }
                     .collect {
                         posts ->
                         _allPosts.value = posts
-                        _isLoading.value = false
+                        _isLoadingAll.value = false
                         _error.value = null
                     }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _error.value = "Error loading posts: ${e.message}"
-                _isLoading.value = false
+                _isLoadingAll.value = false
             }
         }
     }
@@ -320,7 +339,7 @@ class SocialViewModel @Inject constructor(
                     _isLoading.value = false
                 } else {
                     _error.value = null
-                    loadFeed()
+                    _isLoading.value = false
                 }
             } catch (e: Exception) {
                 _firebaseAvailable.value = false
@@ -479,8 +498,6 @@ class SocialViewModel @Inject constructor(
                             _isAdmin.value = profile?.role == "admin"
                         }
                     }
-
-                    loadFeed()
                 } else {
                     _feedPosts.value = emptyList()
                     _isAdmin.value = false

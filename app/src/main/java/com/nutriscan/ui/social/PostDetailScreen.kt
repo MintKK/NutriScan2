@@ -34,9 +34,7 @@ fun PostDetailScreen(
     val author by viewModel.author.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val error by viewModel.error.collectAsState()
-
-    val currentUserID = author?.uid // For like tracking in UI if PostCard requires it, 
-    // although PostCard just takes post, author User, and handles onLikeClick/onCommentClick
+    val isLiked by viewModel.isLiked.collectAsState()
 
     Scaffold(
         topBar = {
@@ -77,7 +75,7 @@ fun PostDetailScreen(
                                 // but we must provide the lambda
                             },
                             onProfileClick = { onNavigateToProfile(it) },
-                            isLiked = false // SocialViewModel inside PostCard will actually re-evaluate this, but we provide false initially
+                            isLiked = isLiked
                         )
                     }
                 }

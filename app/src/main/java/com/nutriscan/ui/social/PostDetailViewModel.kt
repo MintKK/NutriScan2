@@ -8,8 +8,10 @@ import com.nutriscan.data.remote.models.User
 import com.nutriscan.data.repository.SocialRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -35,6 +37,13 @@ class PostDetailViewModel @Inject constructor(
 
     private val _error = MutableStateFlow<String?>(null)
     val error = _error.asStateFlow()
+    
+    val isLiked: StateFlow<Boolean> = repository.isPostLikedByUser(postID)
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = false
+        )
 
     init {
         loadPost()
@@ -76,13 +85,22 @@ class PostDetailViewModel @Inject constructor(
         )
     }
 
+    // Debounce flag to prevent spamming the like button
+    private var isLiking = false
+
     // Toggle like
     fun toggleLike() {
+        if (isLiking) return
         val currentPost = _post.value ?: return
+        isLiking = true
         viewModelScope.launch {
-            repository.toggleLike(currentPost.postID).onSuccess {
-                // To keep it simple, reload or manually patch
-                loadPost()
+            try {
+                repository.toggleLike(currentPost.postID).onSuccess {
+                    // To keep it simple, reload or manually patch
+                    loadPost()
+                }
+            } finally {
+                isLiking = false
             }
         }
     }
