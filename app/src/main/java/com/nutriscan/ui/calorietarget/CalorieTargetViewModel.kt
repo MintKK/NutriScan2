@@ -21,9 +21,24 @@ class CalorieTargetViewModel @Inject constructor(
     val getTargetCalories = mealRepository.getTargetCalories()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000),0)
 
+    val getTargetProtein = mealRepository.getTargetProtein()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0f)
+
+    val getTargetCarbs = mealRepository.getTargetCarbs()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0f)
+
+    val getTargetFat = mealRepository.getTargetFat()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0f)
+
     fun setCalorieTarget(targetCalories: Int) {
         viewModelScope.launch {
             mealRepository.saveTargetCalories(targetCalories)
+        }
+    }
+
+    fun setTargetMacros(protein: Int, carbs: Int, fat: Int) {
+        viewModelScope.launch {
+            mealRepository.saveTargetMacros(protein, carbs, fat)
         }
     }
 
