@@ -1,6 +1,8 @@
 package com.nutriscan.ui.social
 
+import android.Manifest
 import android.R
+import android.content.pm.PackageManager
 import android.net.Uri
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -89,7 +91,10 @@ import androidx.activity.result.contract.ActivityResultContracts
 import com.nutriscan.ui.addmeal.CandidateSelectionSheet
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.PhotoLibrary
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 import androidx.compose.ui.text.style.TextAlign
+import androidx.core.content.ContextCompat
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -111,6 +116,8 @@ fun CreatePostScreen(
 
     var isLoading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
+
+    var showPermissionDeniedDialog by remember { mutableStateOf(false) }
 
     // get current user ID from SocialViewModel
     // to tell if this user profile is their own profile
@@ -278,6 +285,21 @@ fun CreatePostScreen(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
+                    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+                        contract = ActivityResultContracts.RequestPermission()
+                    ) { isGranted ->
+                        if (isGranted) {
+                            val file = createImageFile()
+                            val uri = FileProvider.getUriForFile(
+                                context, "${context.packageName}.provider", file
+                            )
+                            tempCameraUri = uri
+                            cameraLauncher.launch(uri)
+                        } else {
+                            showPermissionDeniedDialog = true
+                        }
+                    }
+
                     // Take Photo option
                     Card(
                         modifier = Modifier
@@ -290,7 +312,16 @@ fun CreatePostScreen(
                                     file
                                 )
                                 tempCameraUri = uri
-                                cameraLauncher.launch(uri)
+
+                                val permissionStatus = ContextCompat.checkSelfPermission(
+                                    context, Manifest.permission.CAMERA
+                                )
+
+                                if (permissionStatus == PackageManager.PERMISSION_GRANTED) {
+                                    cameraLauncher.launch(uri)
+                                } else {
+                                    cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                                }
                             },
                         colors = CardDefaults.cardColors(
                             containerColor = MaterialTheme.colorScheme.secondaryContainer
@@ -610,6 +641,19 @@ fun CreatePostScreen(
                 }
             }
         }
+    }
+
+    if (showPermissionDeniedDialog) {
+        AlertDialog(
+            onDismissRequest = { showPermissionDeniedDialog = false },
+            title = { Text("Camera Permission Required") },
+            text = { Text("Please grant camera permission to take photos.") },
+            confirmButton = {
+                TextButton(onClick = { showPermissionDeniedDialog = false }) {
+                    Text("OK")
+                }
+            }
+        )
     }
 
     if (matchResults.isNotEmpty()) {
