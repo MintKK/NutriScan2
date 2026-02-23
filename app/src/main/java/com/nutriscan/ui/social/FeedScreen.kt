@@ -334,7 +334,7 @@ fun FeedScreen(
                                     onAddComment(post.postID, commentText)
                                 },
                                 onProfileClick = {
-                                    onNavigateToProfile(post.userID)
+                                    onNavigateToProfile(it)
                                 },
                                 onDeleteClick = { viewModel.deletePost(it) },
                                 isLiked = isLiked
