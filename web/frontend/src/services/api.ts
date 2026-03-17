@@ -33,13 +33,8 @@ export const authApi = {
 // ============ CLASSIFY ============
 
 export const classifyApi = {
-  classifyImage: (file: File) => {
-    const formData = new FormData();
-    formData.append('image', file);
-    return api.post('/classify', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
-  },
+  classifyResults: (results: { label: string; confidence: number }[]) => 
+    api.post('/classify', { results }),
   searchFood: (query: string) => api.get(`/classify/search?q=${encodeURIComponent(query)}`),
   calculatePortion: (foodName: string, grams: number) =>
     api.post('/classify/portion', { foodName, grams }),

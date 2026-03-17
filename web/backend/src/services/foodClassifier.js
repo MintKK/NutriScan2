@@ -39,24 +39,33 @@ async function initialize(modelPath, labelsPath) {
   loadLabels(labelsPath);
 
   try {
-    // Try to load @tensorflow/tfjs-node
-    const tf = require('@tensorflow/tfjs-node');
+    // Import TF.js core and the TFLite runner
+    const tf = require('@tensorflow/tfjs-core');
+    require('@tensorflow/tfjs-backend-cpu'); // CPU backend is most reliable in Node
     
-    // Convert TFLite to TF.js format or use tfjs-tflite
-    // For now, we'll check if a converted model exists
-    const savedModelDir = path.join(path.dirname(modelPath), 'food11_tfjs');
-    
-    if (fs.existsSync(savedModelDir)) {
-      interpreter = await tf.node.loadSavedModel(savedModelDir);
-      tfAvailable = true;
-      console.log('[FoodClassifier] TF.js model loaded successfully');
-    } else {
-      console.log('[FoodClassifier] No TF.js model found. Using label-based matching mode.');
-      console.log('[FoodClassifier] To enable full inference, convert model: tensorflowjs_converter --input_format=tf_lite food11.tflite food11_tfjs/');
-      tfAvailable = false;
+    // tfjs-tflite expects a browser environment.
+    // We must polyfill `self` before requiring it, or the WASM loader crashes.
+    if (typeof self === 'undefined') {
+      global.self = global;
     }
+    const tflite = require('@tensorflow/tfjs-tflite');
+    
+    // Set backend to CPU explicitly
+    await tf.setBackend('cpu');
+    await tf.ready();
+    console.log('[FoodClassifier] TF.js CPU backend initialized');
+
+    // In Node.js, loadTFLiteModel expects a URL and fetch() fails for local paths.
+    // So we read the file directly into a buffer and pass the buffer.
+    const modelBuffer = fs.readFileSync(modelPath);
+    const modelArrayBuffer = new Uint8Array(modelBuffer).buffer;
+
+    // Load the raw TFLite model from the buffer
+    interpreter = await tflite.loadTFLiteModel(modelArrayBuffer);
+    tfAvailable = true;
+    console.log('[FoodClassifier] TFLite model loaded successfully');
   } catch (e) {
-    console.log(`[FoodClassifier] TF.js not available (${e.message}). Using label-based matching mode.`);
+    console.log(`[FoodClassifier] ML model failed to load (${e.message}). Using label-based matching mode.`);
     tfAvailable = false;
   }
 
@@ -85,7 +94,7 @@ async function runInference(pixels) {
     return null;
   }
 
-  const tf = require('@tensorflow/tfjs-node');
+  const tf = require('@tensorflow/tfjs-core');
   
   // Create input tensor [1, 192, 192, 3] as UINT8
   const inputTensor = tf.tensor4d(

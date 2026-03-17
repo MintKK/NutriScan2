@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { classifyApi, mealsApi } from '../services/api';
+import { useFoodClassifier } from '../hooks/useFoodClassifier';
 
 interface FoodCandidate {
   food: { name: string; kcalPer100g: number; proteinPer100g: number; carbsPer100g: number; fatPer100g: number };
@@ -15,6 +16,7 @@ interface FoodCandidate {
 export default function AddMealPage() {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { isReady, classifyImage: classifyLocal } = useFoodClassifier();
 
   const [step, setStep] = useState<'upload' | 'results' | 'portion' | 'search'>('upload');
   const [classifying, setClassifying] = useState(false);
@@ -29,24 +31,103 @@ export default function AddMealPage() {
   const [dragging, setDragging] = useState(false);
   const [logging, setLogging] = useState(false);
   const [classifyMessage, setClassifyMessage] = useState('');
+  const [imageUrl, setImageUrl] = useState('');
 
   const handleFile = async (file: File) => {
     setPreviewUrl(URL.createObjectURL(file));
     setClassifying(true);
     setClassifyMessage('');
+
+    if (!isReady) {
+      setClassifyMessage('AI model is still loading, please wait or use search.');
+      setClassifying(false);
+      return;
+    }
+
     try {
-      const res = await classifyApi.classifyImage(file);
+      // Load image into memory for TF.js
+      const img = new Image();
+      img.src = URL.createObjectURL(file);
+      await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = reject;
+      });
+
+      // 1. Run local ML inference in the browser
+      const mlResults = await classifyLocal(img);
+
+      if (mlResults.length === 0) {
+        setClassifyMessage('No clear food detected by AI. Try searching manually.');
+        setStep('search');
+        setClassifying(false);
+        return;
+      }
+
+      // 2. Map the ML labels to actual food database entries
+      const res = await classifyApi.classifyResults(mlResults);
       const data = res.data;
+
       if (data.candidates && data.candidates.length > 0) {
         setCandidates(data.candidates);
         setStep('results');
       } else {
-        setClassifyMessage(data.message || 'No food detected. Try searching manually.');
+        setClassifyMessage(data.message || 'No matching food in database. Try searching manually.');
         setStep('search');
       }
     } catch (err) {
+      console.error('Classification error:', err);
       setClassifyMessage('Classification failed. Try searching manually.');
       setStep('search');
+    } finally {
+      setClassifying(false);
+    }
+  };
+
+  const handleImageUrl = async () => {
+    const url = imageUrl.trim();
+    if (!url) return;
+
+    setPreviewUrl(url);
+    setClassifying(true);
+    setClassifyMessage('');
+
+    if (!isReady) {
+      setClassifyMessage('AI model is still loading, please wait or use search.');
+      setClassifying(false);
+      return;
+    }
+
+    try {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.src = url;
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = () => reject(new Error('Failed to load image from URL'));
+      });
+
+      const mlResults = await classifyLocal(img);
+
+      if (mlResults.length === 0) {
+        setClassifyMessage('No clear food detected by AI. Try searching manually.');
+        setStep('search');
+        setClassifying(false);
+        return;
+      }
+
+      const res = await classifyApi.classifyResults(mlResults);
+      const data = res.data;
+
+      if (data.candidates && data.candidates.length > 0) {
+        setCandidates(data.candidates);
+        setStep('results');
+      } else {
+        setClassifyMessage(data.message || 'No matching food in database. Try searching manually.');
+        setStep('search');
+      }
+    } catch (err) {
+      console.error('URL classification error:', err);
+      setClassifyMessage('Could not load image from URL. Check the link or try uploading instead.');
     } finally {
       setClassifying(false);
     }
@@ -178,6 +259,31 @@ export default function AddMealPage() {
             style={{ display: 'none' }}
             onChange={e => e.target.files?.[0] && handleFile(e.target.files[0])}
           />
+
+          {/* URL input */}
+          <div style={{
+            display: 'flex', gap: 8, marginTop: 16, alignItems: 'center'
+          }}>
+            <span style={{ fontSize: '1.2rem' }}>🔗</span>
+            <input
+              id="image-url-input"
+              className="form-input"
+              type="url"
+              placeholder="Paste an image URL..."
+              value={imageUrl}
+              onChange={e => setImageUrl(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleImageUrl()}
+              style={{ flex: 1 }}
+            />
+            <button
+              className="btn btn-primary btn-sm"
+              onClick={handleImageUrl}
+              disabled={classifying || !imageUrl.trim()}
+            >
+              {classifying ? 'Analyzing...' : 'Classify'}
+            </button>
+          </div>
+
           {classifyMessage && (
             <div className="coach-tip" style={{ marginTop: 16 }}>
               <span className="tip-icon">💡</span>

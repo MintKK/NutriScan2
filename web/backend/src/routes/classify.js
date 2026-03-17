@@ -4,7 +4,6 @@
  */
 
 const express = require('express');
-const multer = require('multer');
 const { classifyFood } = require('../services/foodClassifier');
 const { matchClassifications } = require('../services/foodMatchingService');
 const { getSuggestionForFood } = require('../services/aiCoach');
@@ -12,30 +11,20 @@ const { calculatePortionNutrition } = require('../services/nutritionCalculator')
 
 const router = express.Router();
 
-// Configure multer for memory storage (max 10MB)
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    const allowed = ['image/jpeg', 'image/png', 'image/webp'];
-    if (allowed.includes(file.mimetype)) {
-      cb(null, true);
-    } else {
-      cb(new Error('Only JPEG, PNG, and WebP images are allowed'));
-    }
-  }
-});
-
 /**
  * POST /api/classify
- * Upload a food image and get classification results.
- * Body: multipart/form-data with 'image' field
+ * Accepts an array of ML results from the frontend TF.js wrapper
+ * and runs them through the food matching pipeline.
+ * Body: { results: [{ label, confidence }] }
  * Returns: { status, candidates: [{ food, nutrition, matchType, confidence, coachTip }] }
  */
-router.post('/', upload.single('image'), async (req, res) => {
+router.post('/', (req, res) => {
   try {
-    if (!req.file) {
-      return res.status(400).json({ error: 'No image file provided' });
+    const { results } = req.body;
+    
+    if (!results || !Array.isArray(results)) {
+      console.error('[Classify] Invalid body received:', JSON.stringify(req.body));
+      return res.status(400).json({ error: 'No ML results provided' });
     }
 
     const foodIndex = req.app.locals.foodIndex;
@@ -43,19 +32,16 @@ router.post('/', upload.single('image'), async (req, res) => {
       return res.status(500).json({ error: 'Food index not ready' });
     }
 
-    // 1. Classify the image
-    const classification = await classifyFood(req.file.buffer);
-
-    // 2. If we got ML results, match them against the food database
+    // 1. Run inference results through the food matching pipeline
     let candidates = [];
-    if (classification.results.length > 0) {
-      const matches = matchClassifications(classification.results, foodIndex);
+    if (results.length > 0) {
+      const matches = matchClassifications(results, foodIndex);
       candidates = matches
         .filter(m => m.matchedFood)
         .map(m => ({
           food: m.matchedFood,
           matchType: m.matchType,
-          confidence: m.confidencePercent,
+          confidence: Math.round(m.confidencePercent),
           combinedScore: Math.round(m.combinedScore * 100),
           mlLabel: m.mlLabel,
           // Pre-calculate nutrition for common portions
@@ -70,16 +56,20 @@ router.post('/', upload.single('image'), async (req, res) => {
         }));
     }
 
+    const status = candidates.length > 0
+      ? (candidates[0].confidence >= 70 ? 'HIGH_CONFIDENCE' : (candidates.length === 1 ? 'SINGLE_MATCH' : 'MULTIPLE_CANDIDATES'))
+      : 'NO_FOOD_DETECTED';
+
     res.json({
-      status: classification.status,
-      message: classification.message || null,
+      status,
+      message: candidates.length === 0 ? 'No food matches found in database.' : null,
       candidateCount: candidates.length,
       candidates
     });
 
   } catch (error) {
     console.error('[Classify] Error:', error);
-    res.status(500).json({ error: 'Classification failed', message: error.message });
+    res.status(500).json({ error: 'Classification matching failed', message: error.message });
   }
 });
 
