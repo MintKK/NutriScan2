@@ -45,6 +45,8 @@ const authLimiter = rateLimit({
 // ============ FIREBASE INIT ============
 
 function initFirebase() {
+  const PROJECT_ID = process.env.FIREBASE_PROJECT_ID || 'nutriscan-2c485';
+  
   try {
     const serviceAccountPath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH || './firebase-service-account.json';
     
@@ -54,21 +56,12 @@ function initFirebase() {
         credential: admin.credential.cert(serviceAccount)
       });
       console.log('[Server] Firebase initialized with service account');
-    } else if (process.env.FIREBASE_PROJECT_ID) {
-      // Use application default credentials (for Cloud Run)
-      admin.initializeApp({
-        projectId: process.env.FIREBASE_PROJECT_ID
-      });
-      console.log('[Server] Firebase initialized with project ID');
     } else {
-      console.warn('[Server] No Firebase credentials found. Auth and Firestore routes will fail.');
-      console.warn('[Server] Place firebase-service-account.json in web/backend/ or set FIREBASE_SERVICE_ACCOUNT_PATH');
-      // Initialize without credentials for development (classifier/search still work)
-      try {
-        admin.initializeApp();
-      } catch (e) {
-        // Already initialized or can't initialize
-      }
+      // Initialize with just project ID — token verification still works
+      // (Firebase Admin uses Google's public keys to verify tokens)
+      admin.initializeApp({ projectId: PROJECT_ID });
+      console.log(`[Server] Firebase initialized with project ID: ${PROJECT_ID}`);
+      console.log('[Server] Note: Firestore writes require a service account. Token verification works.');
     }
   } catch (error) {
     console.error('[Server] Firebase init error:', error.message);

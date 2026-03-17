@@ -1,16 +1,19 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 
-// Firebase configuration — replace with your project's config
+// Firebase configuration
+// API key and App ID come from registering a Web App in Firebase Console
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "YOUR_API_KEY",
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "YOUR_PROJECT.firebaseapp.com",
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "YOUR_PROJECT_ID",
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "YOUR_PROJECT.appspot.com",
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "000000000000",
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:000000000000:web:0000000000000000"
+  apiKey: "AIzaSyDnBhnE5zAdYdExLhWUvWncIR6UstM4GDA",
+  authDomain: "nutriscan-2c485.firebaseapp.com",
+  projectId: "nutriscan-2c485",
+  storageBucket: "nutriscan-2c485.firebasestorage.app",
+  messagingSenderId: "443358962510",
+  appId: "1:443358962510:web:2ab3a88abcd69273cb341f",
+  measurementId: "G-CGSH5EDPYX"
 };
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export default app;
+

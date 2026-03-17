@@ -30,11 +30,12 @@ router.get('/feed', optionalAuth, async (req, res) => {
     const sortBy = req.query.sort || 'trendingScore';
 
     const snapshot = await db().collection('posts')
-      .orderBy(sortBy, 'desc')
       .limit(limit)
       .get();
 
-    const posts = snapshot.docs.map(doc => ({ postID: doc.id, ...doc.data() }));
+    const posts = snapshot.docs
+      .map(doc => ({ postID: doc.id, ...doc.data() }))
+      .sort((a, b) => (b[sortBy] || 0) - (a[sortBy] || 0));
 
     // If authenticated, check which posts are liked
     if (req.user) {
@@ -171,10 +172,11 @@ router.get('/posts/:id/comments', async (req, res) => {
   try {
     const snapshot = await db().collection('comments')
       .where('postID', '==', req.params.id)
-      .orderBy('createdAt', 'desc')
       .get();
 
-    const comments = snapshot.docs.map(doc => ({ ...doc.data() }));
+    const comments = snapshot.docs
+      .map(doc => ({ ...doc.data() }))
+      .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
     res.json({ comments });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -347,11 +349,12 @@ router.get('/users/:uid/posts', async (req, res) => {
   try {
     const snapshot = await db().collection('posts')
       .where('userID', '==', req.params.uid)
-      .orderBy('created', 'desc')
       .limit(20)
       .get();
 
-    const posts = snapshot.docs.map(doc => ({ postID: doc.id, ...doc.data() }));
+    const posts = snapshot.docs
+      .map(doc => ({ postID: doc.id, ...doc.data() }))
+      .sort((a, b) => (b.created || 0) - (a.created || 0));
     res.json({ posts });
   } catch (error) {
     res.status(500).json({ error: error.message });

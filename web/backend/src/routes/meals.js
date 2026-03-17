@@ -60,10 +60,11 @@ router.get('/today', requireAuth, async (req, res) => {
     const snapshot = await db().collection('meal_logs')
       .where('userId', '==', req.user.uid)
       .where('date', '==', today)
-      .orderBy('timestamp', 'desc')
       .get();
 
-    const meals = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const meals = snapshot.docs
+      .map(doc => ({ id: doc.id, ...doc.data() }))
+      .sort((a, b) => (b.timestamp?._seconds || 0) - (a.timestamp?._seconds || 0));
 
     // Calculate daily totals
     const totals = meals.reduce((acc, m) => ({
@@ -136,10 +137,11 @@ router.get('/diary/:date', requireAuth, async (req, res) => {
     const snapshot = await db().collection('meal_logs')
       .where('userId', '==', req.user.uid)
       .where('date', '==', date)
-      .orderBy('timestamp', 'desc')
       .get();
 
-    const meals = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const meals = snapshot.docs
+      .map(doc => ({ id: doc.id, ...doc.data() }))
+      .sort((a, b) => (b.timestamp?._seconds || 0) - (a.timestamp?._seconds || 0));
 
     const totals = meals.reduce((acc, m) => ({
       kcal: acc.kcal + (m.kcalTotal || 0),
