@@ -237,6 +237,10 @@ export default function AddMealPage() {
           >
             {classifying ? (
               <>
+                {previewUrl && (
+                  <img src={previewUrl} alt="Preview"
+                    style={{ maxHeight: 150, borderRadius: 12, objectFit: 'cover', marginBottom: 12, opacity: 0.7 }} />
+                )}
                 <div className="spinner" style={{ margin: '0 auto 16px' }} />
                 <div className="upload-text">Analyzing your food...</div>
                 <div className="upload-subtext">Running AI classification</div>
@@ -296,6 +300,12 @@ export default function AddMealPage() {
       {/* Step 2: Classification Results */}
       {step === 'results' && (
         <div className="food-candidates">
+          {previewUrl && (
+            <div style={{ textAlign: 'center', marginBottom: 16 }}>
+              <img src={previewUrl} alt="Your food"
+                style={{ maxHeight: 200, maxWidth: '100%', borderRadius: 12, objectFit: 'cover' }} />
+            </div>
+          )}
           <p style={{ color: 'var(--text-secondary)', marginBottom: 8 }}>
             We found {candidates.length} match{candidates.length !== 1 ? 'es' : ''}. Tap to select:
           </p>
@@ -355,6 +365,12 @@ export default function AddMealPage() {
       {/* Step 3: Portion Picker */}
       {step === 'portion' && selected && (
         <div className="card" style={{ marginTop: 16 }}>
+          {previewUrl && (
+            <div style={{ textAlign: 'center', marginBottom: 16 }}>
+              <img src={previewUrl} alt="Your food"
+                style={{ maxHeight: 180, maxWidth: '100%', borderRadius: 12, objectFit: 'cover' }} />
+            </div>
+          )}
           <h3 style={{ marginBottom: 4 }}>{selected.food.name}</h3>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: 16 }}>
             {selected.food.kcalPer100g} kcal per 100g
