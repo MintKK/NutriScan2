@@ -1,0 +1,170 @@
+/**
+ * NutriScan Cloud — Backend API Server
+ * Main entry point. Initializes Firebase, loads ML assets, mounts routes.
+ */
+
+const express = require('express');
+const cors = require('cors');
+const path = require('path');
+const fs = require('fs');
+const rateLimit = require('express-rate-limit');
+
+// Load environment variables
+require('dotenv').config();
+
+const admin = require('firebase-admin');
+const FoodAliasIndex = require('./services/foodAliasIndex');
+const { initialize: initClassifier } = require('./services/foodClassifier');
+
+const app = express();
+const PORT = process.env.PORT || 3001;
+
+// ============ MIDDLEWARE ============
+
+app.use(cors({
+  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  credentials: true
+}));
+app.use(express.json({ limit: '1mb' }));
+
+// Rate limiting
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 200,
+  message: { error: 'Too many requests, please try again later' }
+});
+app.use('/api/', apiLimiter);
+
+// Stricter rate limit for auth endpoints
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  message: { error: 'Too many authentication attempts' }
+});
+
+// ============ FIREBASE INIT ============
+
+function initFirebase() {
+  try {
+    const serviceAccountPath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH || './firebase-service-account.json';
+    
+    if (fs.existsSync(serviceAccountPath)) {
+      const serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf-8'));
+      admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount)
+      });
+      console.log('[Server] Firebase initialized with service account');
+    } else if (process.env.FIREBASE_PROJECT_ID) {
+      // Use application default credentials (for Cloud Run)
+      admin.initializeApp({
+        projectId: process.env.FIREBASE_PROJECT_ID
+      });
+      console.log('[Server] Firebase initialized with project ID');
+    } else {
+      console.warn('[Server] No Firebase credentials found. Auth and Firestore routes will fail.');
+      console.warn('[Server] Place firebase-service-account.json in web/backend/ or set FIREBASE_SERVICE_ACCOUNT_PATH');
+      // Initialize without credentials for development (classifier/search still work)
+      try {
+        admin.initializeApp();
+      } catch (e) {
+        // Already initialized or can't initialize
+      }
+    }
+  } catch (error) {
+    console.error('[Server] Firebase init error:', error.message);
+  }
+}
+
+// ============ FOOD DATA INIT ============
+
+async function initFoodData() {
+  const foodDataPath = process.env.FOOD_DATA_PATH || 
+    path.resolve(__dirname, '../../..', 'app/src/main/assets/food_items.json');
+
+  console.log(`[Server] Loading food data from: ${foodDataPath}`);
+
+  if (!fs.existsSync(foodDataPath)) {
+    console.error(`[Server] food_items.json not found at: ${foodDataPath}`);
+    return null;
+  }
+
+  const rawData = fs.readFileSync(foodDataPath, 'utf-8');
+  const foods = JSON.parse(rawData);
+  console.log(`[Server] Loaded ${foods.length} food items`);
+
+  const index = new FoodAliasIndex(foods);
+  console.log(`[Server] Food alias index built: ${index.size()} names indexed`);
+
+  return index;
+}
+
+// ============ ML CLASSIFIER INIT ============
+
+async function initML() {
+  const modelPath = process.env.MODEL_PATH ||
+    path.resolve(__dirname, '../../..', 'app/src/main/assets/ml/food11.tflite');
+  const labelsPath = process.env.LABELS_PATH ||
+    path.resolve(__dirname, '../../..', 'app/src/main/assets/ml/food11_labels.txt');
+
+  console.log(`[Server] Initializing ML classifier...`);
+  await initClassifier(modelPath, labelsPath);
+}
+
+// ============ ROUTES ============
+
+const classifyRoutes = require('./routes/classify');
+const mealsRoutes = require('./routes/meals');
+const socialRoutes = require('./routes/social');
+const authRoutes = require('./routes/auth');
+
+app.use('/api/classify', classifyRoutes);
+app.use('/api/meals', mealsRoutes);
+app.use('/api/social', socialRoutes);
+app.use('/api/auth', authLimiter, authRoutes);
+
+// Health check
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    service: 'NutriScan Cloud API',
+    foodIndexReady: !!app.locals.foodIndex,
+    timestamp: new Date().toISOString()
+  });
+});
+
+// ============ START ============
+
+async function start() {
+  console.log('\n========================================');
+  console.log('  NutriScan Cloud — API Server');
+  console.log('========================================\n');
+
+  // 1. Initialize Firebase
+  initFirebase();
+
+  // 2. Load food database and build alias index
+  const foodIndex = await initFoodData();
+  if (foodIndex) {
+    app.locals.foodIndex = foodIndex;
+  }
+
+  // 3. Initialize ML classifier (best-effort)
+  try {
+    await initML();
+  } catch (e) {
+    console.warn(`[Server] ML classifier init warning: ${e.message}`);
+    console.warn('[Server] Manual food search will still work.');
+  }
+
+  // 4. Start listening
+  app.listen(PORT, () => {
+    console.log(`\n[Server] API running at http://localhost:${PORT}`);
+    console.log(`[Server] Health check: http://localhost:${PORT}/api/health`);
+    console.log(`[Server] Food search: http://localhost:${PORT}/api/classify/search?q=apple\n`);
+  });
+}
+
+start().catch(err => {
+  console.error('[Server] Fatal error:', err);
+  process.exit(1);
+});
