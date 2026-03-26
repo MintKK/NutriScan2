@@ -138,10 +138,41 @@ function parseOutput(scores) {
  */
 async function classifyFood(imageBuffer) {
   try {
-    if (!isInitialized) {
+    if (!isInitialized && !process.env.INFERENCE_SERVICE_URL) {
       return { results: [], status: 'ERROR', message: 'Classifier not initialized' };
     }
 
+    // Attempt to use the dedicated ML Inference Microservice if configured
+    if (process.env.INFERENCE_SERVICE_URL) {
+      try {
+        const formData = new FormData();
+        const blob = new Blob([imageBuffer], { type: 'image/jpeg' });
+        formData.append('image', blob, 'image.jpg');
+
+        const response = await fetch(`${process.env.INFERENCE_SERVICE_URL}/predict`, {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          const results = data.results || [];
+          if (results.length === 0) return { results: [], status: 'NO_FOOD_DETECTED' };
+          
+          const status = results[0].confidence >= HIGH_CONFIDENCE
+            ? 'HIGH_CONFIDENCE'
+            : results.length === 1 ? 'SINGLE_MATCH' : 'MULTIPLE_CANDIDATES';
+            
+          return { results, status };
+        } else {
+          console.warn(`[FoodClassifier] Inference Service returned ${response.status}. Falling back if possible.`);
+        }
+      } catch (err) {
+        console.error('[FoodClassifier] Failed to reach Inference Service:', err.message);
+      }
+    }
+
+    // Fallback to local TF.js implementation
     const { pixels } = await preprocessImage(imageBuffer);
 
     if (tfAvailable) {

@@ -44,20 +44,31 @@ router.post('/', upload.single('image'), async (req, res) => {
       return res.status(400).json({ error: 'No image file provided' });
     }
 
-    const filename = `${uuidv4()}.webp`;
-    const outputPath = path.join(UPLOADS_DIR, filename);
+    const filename = `uploads/${uuidv4()}.webp`;
 
     // Resize and compress with sharp
-    await sharp(req.file.buffer)
+    const processedImageBuffer = await sharp(req.file.buffer)
       .resize(800, 800, { fit: 'inside', withoutEnlargement: true })
       .webp({ quality: 80 })
-      .toFile(outputPath);
+      .toBuffer();
 
-    // Build the URL for the frontend
-    const baseUrl = process.env.BACKEND_URL || `http://localhost:${process.env.PORT || 3001}`;
-    const imageUrl = `${baseUrl}/uploads/${filename}`;
+    // Upload to Firebase Storage (GCS)
+    const admin = require('firebase-admin');
+    const bucket = admin.storage().bucket();
+    const file = bucket.file(filename);
 
-    console.log(`[Upload] Saved image: ${filename} (${(req.file.size / 1024).toFixed(1)}KB → compressed)`);
+    await file.save(processedImageBuffer, {
+      metadata: {
+        contentType: 'image/webp',
+        cacheControl: 'public, max-age=31536000'
+      }
+    });
+
+    // Make the file public to generate a regular Firebase Storage download URL
+    await file.makePublic();
+    const imageUrl = file.publicUrl();
+
+    console.log(`[Upload] Saved image to GCS: ${filename} (${(processedImageBuffer.length / 1024).toFixed(1)}KB)`);
 
     res.json({ imageUrl, filename });
   } catch (error) {

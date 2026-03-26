@@ -53,13 +53,17 @@ function initFirebase() {
     if (fs.existsSync(serviceAccountPath)) {
       const serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf-8'));
       admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount)
+        credential: admin.credential.cert(serviceAccount),
+        storageBucket: process.env.FIREBASE_STORAGE_BUCKET || 'nutriscan-2c485.appspot.com'
       });
       console.log('[Server] Firebase initialized with service account');
     } else {
       // Initialize with just project ID — token verification still works
       // (Firebase Admin uses Google's public keys to verify tokens)
-      admin.initializeApp({ projectId: PROJECT_ID });
+      admin.initializeApp({ 
+        projectId: PROJECT_ID,
+        storageBucket: process.env.FIREBASE_STORAGE_BUCKET || 'nutriscan-2c485.appspot.com'
+      });
       console.log(`[Server] Firebase initialized with project ID: ${PROJECT_ID}`);
       console.log('[Server] Note: Firestore writes require a service account. Token verification works.');
     }
