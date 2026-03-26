@@ -62,12 +62,28 @@ router.post('/posts', requireAuth, async (req, res) => {
   try {
     const { caption, foodName, calories, protein, carbs, fat, foodImageUrl } = req.body;
 
-    // Get user profile
+    // Get user profile (auto-create if it doesn't exist)
     const userDoc = await db().collection('users').doc(req.user.uid).get();
+    let userProfile;
     if (!userDoc.exists) {
-      return res.status(404).json({ error: 'User profile not found' });
+      // Auto-create a basic profile from Firebase Auth info
+      userProfile = {
+        uid: req.user.uid,
+        email: req.user.email || '',
+        username: (req.user.email || 'user').split('@')[0],
+        displayname: '',
+        bio: '',
+        profileImageUrl: '',
+        numFollowers: 0,
+        numFollowing: 0,
+        numPosts: 0,
+        created: Date.now(),
+        updated: Date.now()
+      };
+      await db().collection('users').doc(req.user.uid).set(userProfile);
+    } else {
+      userProfile = userDoc.data();
     }
-    const userProfile = userDoc.data();
 
     const postRef = db().collection('posts').doc();
     const post = {

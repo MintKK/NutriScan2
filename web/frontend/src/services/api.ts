@@ -74,4 +74,17 @@ export const socialApi = {
   getUserPosts: (uid: string) => api.get(`/social/users/${uid}/posts`),
 };
 
+// ============ UPLOAD ============
+
+export const uploadApi = {
+  uploadImage: (file: File) => {
+    const formData = new FormData();
+    formData.append('image', file);
+    return api.post('/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 60000,
+    });
+  },
+};
+
 export default api;

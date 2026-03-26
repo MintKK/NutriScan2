@@ -109,11 +109,16 @@ const classifyRoutes = require('./routes/classify');
 const mealsRoutes = require('./routes/meals');
 const socialRoutes = require('./routes/social');
 const authRoutes = require('./routes/auth');
+const uploadRoutes = require('./routes/upload');
+
+// Serve uploaded images as static files
+app.use('/uploads', express.static(path.resolve(__dirname, '../uploads')));
 
 app.use('/api/classify', classifyRoutes);
 app.use('/api/meals', mealsRoutes);
 app.use('/api/social', socialRoutes);
 app.use('/api/auth', authLimiter, authRoutes);
+app.use('/api/upload', uploadRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

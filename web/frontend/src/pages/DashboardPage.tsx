@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { mealsApi } from '../services/api';
+import { mealsApi, socialApi } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
 import { Link } from 'react-router-dom';
 
@@ -26,6 +26,12 @@ export default function DashboardPage() {
   const [insights, setInsights] = useState<Insight[]>([]);
   const [calorieGoal, setCalorieGoal] = useState(2000);
   const [loading, setLoading] = useState(true);
+
+  // Share state
+  const [sharingMeal, setSharingMeal] = useState<Meal | null>(null);
+  const [shareCaption, setShareCaption] = useState('');
+  const [sharing, setSharing] = useState(false);
+  const [shareSuccess, setShareSuccess] = useState('');
 
   useEffect(() => {
     loadDashboard();
@@ -57,6 +63,30 @@ export default function DashboardPage() {
     }
   };
 
+  const handleShareMeal = async () => {
+    if (!sharingMeal || sharing) return;
+    setSharing(true);
+    try {
+      await socialApi.createPost({
+        caption: shareCaption,
+        foodName: sharingMeal.foodName,
+        calories: sharingMeal.kcalTotal,
+        protein: Math.round(sharingMeal.proteinTotal),
+        carbs: Math.round(sharingMeal.carbsTotal),
+        fat: Math.round(sharingMeal.fatTotal),
+        foodImageUrl: ''
+      });
+      setSharingMeal(null);
+      setShareCaption('');
+      setShareSuccess('Shared to community! 🎉');
+      setTimeout(() => setShareSuccess(''), 3000);
+    } catch (err) {
+      console.error('Share error:', err);
+    } finally {
+      setSharing(false);
+    }
+  };
+
   const caloriePercent = Math.min(100, Math.round((totals.kcal / calorieGoal) * 100));
   const circumference = 2 * Math.PI * 72;
   const strokeDashoffset = circumference - (caloriePercent / 100) * circumference;
@@ -74,6 +104,59 @@ export default function DashboardPage() {
           ＋ Add Meal
         </Link>
       </div>
+
+      {/* Share Success Toast */}
+      {shareSuccess && (
+        <div className="coach-tip animate-in" style={{ marginBottom: 16 }}>
+          <span className="tip-icon">✅</span>
+          <span>{shareSuccess}</span>
+        </div>
+      )}
+
+      {/* Share Modal */}
+      {sharingMeal && (
+        <div className="share-overlay" onClick={() => setSharingMeal(null)}>
+          <div className="share-modal animate-in" onClick={e => e.stopPropagation()}>
+            <div className="card-header">
+              <span className="card-title">📤 Share to Community</span>
+              <button className="btn btn-ghost btn-sm" onClick={() => setSharingMeal(null)}>✕</button>
+            </div>
+
+            <div style={{
+              background: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)',
+              padding: 16, marginBottom: 16
+            }}>
+              <div style={{ fontWeight: 600, marginBottom: 4 }}>{sharingMeal.foodName}</div>
+              <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                {sharingMeal.kcalTotal} kcal · P:{Math.round(sharingMeal.proteinTotal)}g · C:{Math.round(sharingMeal.carbsTotal)}g · F:{Math.round(sharingMeal.fatTotal)}g
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Add a caption (optional)</label>
+              <textarea
+                className="form-textarea"
+                placeholder="What do you want to say about this meal?"
+                value={shareCaption}
+                onChange={e => setShareCaption(e.target.value)}
+                rows={2}
+              />
+            </div>
+
+            <div style={{ display: 'flex', gap: 12 }}>
+              <button className="btn btn-secondary" onClick={() => setSharingMeal(null)}>Cancel</button>
+              <button
+                className="btn btn-primary"
+                style={{ flex: 1 }}
+                onClick={handleShareMeal}
+                disabled={sharing}
+              >
+                {sharing ? 'Sharing...' : '📤 Share'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Hero: Calorie Ring + Macros */}
       <div className="card" style={{ marginBottom: 24 }}>
@@ -167,6 +250,7 @@ export default function DashboardPage() {
                   <div className="meal-meta">{meal.grams}g • P:{Math.round(meal.proteinTotal)}g C:{Math.round(meal.carbsTotal)}g F:{Math.round(meal.fatTotal)}g</div>
                 </div>
                 <div className="meal-kcal">{meal.kcalTotal} kcal</div>
+                <button className="btn btn-ghost btn-sm" onClick={() => setSharingMeal(meal)} title="Share to Community">📤</button>
                 <button className="btn btn-ghost btn-sm" onClick={() => deleteMeal(meal.id)} title="Delete">🗑️</button>
               </div>
             ))

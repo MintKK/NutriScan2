@@ -7,6 +7,7 @@ import AddMealPage from './pages/AddMealPage';
 import AnalyticsPage from './pages/AnalyticsPage';
 import SocialPage from './pages/SocialPage';
 import QuestionnairePage from './pages/QuestionnairePage';
+import UserProfilePage from './pages/UserProfilePage';
 import './index.css';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -78,6 +79,9 @@ function AppContent() {
           } />
           <Route path="/social" element={
             <ProtectedRoute><SocialPage /></ProtectedRoute>
+          } />
+          <Route path="/profile/:uid" element={
+            <ProtectedRoute><UserProfilePage /></ProtectedRoute>
           } />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
