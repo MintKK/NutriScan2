@@ -98,9 +98,12 @@ export default function AddMealPage() {
     }
 
     try {
+      // Use our own backend proxy to bypass CORS restrictions on external images
+      const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+      const proxyUrl = `${API_BASE}/api/proxy-image?url=${encodeURIComponent(url)}`;
       const img = new Image();
       img.crossOrigin = 'anonymous';
-      img.src = url;
+      img.src = proxyUrl;
       await new Promise<void>((resolve, reject) => {
         img.onload = () => resolve();
         img.onerror = () => reject(new Error('Failed to load image from URL'));

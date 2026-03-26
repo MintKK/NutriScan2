@@ -53,6 +53,7 @@ export default function SocialPage() {
   const [classifying, setClassifying] = useState(false);
   const [classifyMessage, setClassifyMessage] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [imageUrl, setImageUrl] = useState('');
 
   // Sort state
   const [sortBy, setSortBy] = useState<'trendingScore' | 'created'>('trendingScore');
@@ -79,14 +80,49 @@ export default function SocialPage() {
     }
   };
 
+  // Shared helper to run classification on a loaded HTMLImageElement
+  const runClassification = async (img: HTMLImageElement) => {
+    const mlResults = await classifyImage(img);
+
+    if (mlResults.length === 0) {
+      setClassifyMessage('No food detected. Fill in details manually.');
+      setClassifying(false);
+      return;
+    }
+
+    const res = await classifyApi.classifyResults(mlResults);
+    const candidates = res.data.candidates || [];
+
+    if (candidates.length > 0) {
+      const top = candidates[0];
+      const kcalPer100 = Math.round(top.food.kcalPer100g);
+      const protPer100 = Math.round(top.food.proteinPer100g);
+      const carbsPer100 = Math.round(top.food.carbsPer100g);
+      const fatPer100 = Math.round(top.food.fatPer100g);
+      setPer100g({ kcal: kcalPer100, protein: protPer100, carbs: carbsPer100, fat: fatPer100 });
+      setGrams(100);
+      setNewPost(prev => ({
+        ...prev,
+        foodName: top.food.name,
+        calories: kcalPer100,
+        protein: protPer100,
+        carbs: carbsPer100,
+        fat: fatPer100,
+      }));
+      setClassifyMessage(`Detected: ${top.food.name} (${top.confidence}% confidence) — adjust weight below`);
+    } else {
+      setClassifyMessage('No food match found. Fill in details manually.');
+    }
+  };
+
   const handleImageSelect = async (file: File) => {
     if (!file.type.startsWith('image/')) return;
     setImageFile(file);
+    setImageUrl('');
     const previewUrl = URL.createObjectURL(file);
     setImagePreview(previewUrl);
     setClassifyMessage('');
 
-    // Auto-classify the image
     if (!classifierReady) {
       setClassifyMessage('AI model is still loading...');
       return;
@@ -95,52 +131,51 @@ export default function SocialPage() {
     setClassifying(true);
     setClassifyMessage('Analyzing food...');
     try {
-      // Load image for TF.js
       const img = new Image();
       img.src = previewUrl;
       await new Promise<void>((resolve, reject) => {
         img.onload = () => resolve();
         img.onerror = () => reject(new Error('Failed to load image'));
       });
-
-      // Run local ML inference
-      const mlResults = await classifyImage(img);
-
-      if (mlResults.length === 0) {
-        setClassifyMessage('No food detected. Fill in details manually.');
-        setClassifying(false);
-        return;
-      }
-
-      // Map ML labels to food database entries
-      const res = await classifyApi.classifyResults(mlResults);
-      const candidates = res.data.candidates || [];
-
-      if (candidates.length > 0) {
-        const top = candidates[0];
-        const kcalPer100 = Math.round(top.food.kcalPer100g);
-        const protPer100 = Math.round(top.food.proteinPer100g);
-        const carbsPer100 = Math.round(top.food.carbsPer100g);
-        const fatPer100 = Math.round(top.food.fatPer100g);
-        // Store per-100g reference for weight-based recalculation
-        setPer100g({ kcal: kcalPer100, protein: protPer100, carbs: carbsPer100, fat: fatPer100 });
-        setGrams(100);
-        // Auto-fill the form with the top match (based on 100g)
-        setNewPost(prev => ({
-          ...prev,
-          foodName: top.food.name,
-          calories: kcalPer100,
-          protein: protPer100,
-          carbs: carbsPer100,
-          fat: fatPer100,
-        }));
-        setClassifyMessage(`Detected: ${top.food.name} (${top.confidence}% confidence) — adjust weight below`);
-      } else {
-        setClassifyMessage('No food match found. Fill in details manually.');
-      }
+      await runClassification(img);
     } catch (err) {
       console.error('Classification error:', err);
       setClassifyMessage('Classification failed. Fill in details manually.');
+    } finally {
+      setClassifying(false);
+    }
+  };
+
+  const handleImageUrlSelect = async () => {
+    const url = imageUrl.trim();
+    if (!url) return;
+
+    setImageFile(null);
+    setImagePreview(url);
+    setNewPost(prev => ({ ...prev, foodImageUrl: url }));
+    setClassifyMessage('');
+
+    if (!classifierReady) {
+      setClassifyMessage('AI model is still loading. Fill in details manually.');
+      return;
+    }
+
+    setClassifying(true);
+    setClassifyMessage('Analyzing food...');
+    try {
+      const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+      const proxyUrl = `${API_BASE}/api/proxy-image?url=${encodeURIComponent(url)}`;
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.src = proxyUrl;
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = () => reject(new Error('Failed to load image from URL'));
+      });
+      await runClassification(img);
+    } catch (err) {
+      console.error('URL classification error:', err);
+      setClassifyMessage('Could not load image from URL. Check the link or try uploading instead.');
     } finally {
       setClassifying(false);
     }
@@ -152,12 +187,14 @@ export default function SocialPage() {
     try {
       let foodImageUrl = newPost.foodImageUrl;
 
-      // Upload image file if selected
+      // Upload image file if selected (skip if user provided a URL directly)
       if (imageFile) {
         setUploading(true);
         const uploadRes = await uploadApi.uploadImage(imageFile);
         foodImageUrl = uploadRes.data.imageUrl;
         setUploading(false);
+      } else if (imageUrl.trim()) {
+        foodImageUrl = imageUrl.trim();
       }
 
       await socialApi.createPost({
@@ -172,6 +209,7 @@ export default function SocialPage() {
       setNewPost({ caption: '', foodName: '', calories: 0, protein: 0, carbs: 0, fat: 0, foodImageUrl: '' });
       setImageFile(null);
       setImagePreview('');
+      setImageUrl('');
       setShowCreatePost(false);
       loadFeed();
     } catch (err) {
@@ -359,7 +397,7 @@ export default function SocialPage() {
                 <button
                   className="btn btn-ghost btn-sm"
                   style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.6)' }}
-                  onClick={() => { setImageFile(null); setImagePreview(''); setClassifyMessage(''); }}
+                  onClick={() => { setImageFile(null); setImagePreview(''); setImageUrl(''); setClassifyMessage(''); setNewPost(prev => ({ ...prev, foodImageUrl: '' })); }}
                 >✕</button>
               </div>
             ) : (
@@ -380,6 +418,28 @@ export default function SocialPage() {
               style={{ display: 'none' }}
               onChange={e => e.target.files?.[0] && handleImageSelect(e.target.files[0])}
             />
+
+            {/* URL input for image */}
+            <div style={{ display: 'flex', gap: 8, marginTop: 12, alignItems: 'center' }}>
+              <span style={{ fontSize: '1.2rem' }}>🔗</span>
+              <input
+                id="social-image-url-input"
+                className="form-input"
+                type="url"
+                placeholder="Or paste an image URL..."
+                value={imageUrl}
+                onChange={e => setImageUrl(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleImageUrlSelect()}
+                style={{ flex: 1 }}
+              />
+              <button
+                className="btn btn-primary btn-sm"
+                onClick={handleImageUrlSelect}
+                disabled={classifying || !imageUrl.trim()}
+              >
+                {classifying ? 'Analyzing...' : 'Classify'}
+              </button>
+            </div>
           </div>
 
           {/* Classification result message */}
