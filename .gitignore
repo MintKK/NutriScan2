@@ -39,3 +39,24 @@ build/
 
 # Local configuration
 local.properties
+
+# ============ Node.js ============
+node_modules/
+dist/
+.env
+.env.local
+.env.production
+
+# ============ Python ============
+__pycache__/
+*.pyc
+*.pyo
+venv/
+
+# ============ Security — NEVER commit these ============
+firebase-service-account.json
+*-service-account.json
+
+# ============ Uploads & temp ============
+uploads/
+*.tmp

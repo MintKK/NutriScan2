@@ -1,0 +1,99 @@
+ SIT Internal #
+Proposal (5 marks)
+ComponentExcellent 
+(7.50-10.00)Good 
+(6.00-7.49)Satisfactory 
+(5.00-5.99)Weak 
+(4.00-4.99)Poor
+(0-3.99)Component 
+Mark (value from 
+0.01 to 10.0)
+Technical Contents 
+(Weightage: 3)
+Structure and 
+language
+(Weightage: 2)
+5
+Report and Demo (20 marks)
+ComponentExcellent 
+(7.50-10.00)Good 
+(6.00-7.49)Satisfactory 
+(5.00-5.99)Weak 
+(4.00-4.99)Poor
+(0-3.99)Component 
+Mark (value from 
+0.01 to 10.0)
+Technical Contents 
+& source codes
+(Weightage: 10)
+Language and 
+Expression
+(Weightage: 2)
+Video demo
+(Weightage: 8)
+Individual Contribution (5 marks)
+SN Name of Team Member Student ID Responsibilty Contribution (%)
+1
+2
+3
+4
+5
+6
+Total8
+Write Your Comments Here
+ Overall Mark (100%) 20Exellent, innovative and complete demo of 
+functions and features. Appropriate, interesting and 
+complete demo of functions and 
+f Good showcase of features, 
+complete demo of functions and 
+fIncomplete demo of functions and 
+features.Cannot demo basic functions 
+and features.10
+Clear writing with effective use of simple 
+and complex sentence structures. 
+Excellent paragraphing and text flow. 
+    Clear writing with effective use of 
+simple and complex sentence structures. Good paragraphing and 
+     Clear writing with use of simple and 
+complex sentence structures.  Paragraphing and text flow are 
+     Simple sentence structures are used 
+with marginally acceptable paragraphing and text flow. Too 
+    Poorly written report with too 
+many grammatical and spelling mistakes. Poor sentence, 
+    2Addressing a technical problem with a 
+sound approach, comprehensive 
+background study and in-depth discussion. 
+Complete of codes with comments and 
+ Addressing a technical problem 
+with a structured approach, good background study and logical 
+discussion.
+   Addressing a technical problem with 
+a structured approach with  some 
+background study and  general 
+discussion. Workable code.Technical content is weak with 
+minimum background study and very little discussion. Functions but with 
+some errors in codes.Technical content is very weak 
+with no background study and 
+no/irrelevant discussion. Not 
+functionable codes.Write Your Comments Here
+ Overall Mark (100%) 5Well-structured, clear, and concise 
+propsoal. Professional and error-free 
+language, with appropriate technical 
+       Well-organized with clear language. 
+Minor language or grammatical errors, good use of technical terms. 
+      Adequately structured with 
+reasonable clarity. Some language or grammatical errors, adequate use 
+      Poorly organized, lacking clarity.
+Multiple language or grammatical errors. Ineffective or minimal use of 
+    Poorly organized, difficult to 
+follow. Unclear, misuse of technical terms. Lacks visuals, 
+     23An innovative and highly feasible solution 
+with exceptional technical depth, 
+showcaseing a thorough research and 
+   A solid and feasible technical 
+solution, indicating good understanding, with a clear A technically sound solution with 
+basic feasibility, demonstrating an adequate understanding of the A solution with limited feasibility or 
+technical depth with missing components in the proposal.The technical solution is 
+unfeasible or irrelevant, with 
+missing components or a poor 
+   

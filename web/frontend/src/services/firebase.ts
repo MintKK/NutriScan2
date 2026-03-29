@@ -1,17 +1,19 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 
-// Firebase configuration
-// API key and App ID come from registering a Web App in Firebase Console
+// ============================================================
+// TODO: Replace ALL values below with YOUR Firebase project config.
+// Get these from Firebase Console → Project Settings → Your apps → Web app
+// ============================================================
 const firebaseConfig = {
-  apiKey: "AIzaSyDnBhnE5zAdYdExLhWUvWncIR6UstM4GDA",
-  authDomain: "nutriscan-2c485.firebaseapp.com",
-  projectId: "nutriscan-2c485",
-  storageBucket: "nutriscan-2c485.firebasestorage.app",
-  messagingSenderId: "443358962510",
-  appId: "1:443358962510:web:2ab3a88abcd69273cb341f",
-  measurementId: "G-CGSH5EDPYX"
+  apiKey: "AIzaSyC1NktgeKSJGcetjxVhIYk5JnZxll_33RI",
+  authDomain: "nutriscan-cloud.firebaseapp.com",
+  projectId: "nutriscan-cloud",
+  storageBucket: "nutriscan-cloud.firebasestorage.app",
+  messagingSenderId: "245667741854",
+  appId: "1:245667741854:web:8f90e760d7ebb202693b8f"
 };
+
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);

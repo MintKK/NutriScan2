@@ -21,8 +21,20 @@ const PORT = process.env.PORT || 3001;
 
 // ============ MIDDLEWARE ============
 
+// CORS: allow multiple origins (comma-separated FRONTEND_URL or defaults)
+const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:5173')
+  .split(',')
+  .map(o => o.trim());
+
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  origin: function (origin, callback) {
+    // Allow requests with no origin (e.g., server-to-server, health checks)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin) || allowedOrigins.includes('*')) {
+      return callback(null, true);
+    }
+    callback(new Error('Not allowed by CORS'));
+  },
   credentials: true
 }));
 app.use(express.json({ limit: '1mb' }));
@@ -45,7 +57,7 @@ const authLimiter = rateLimit({
 // ============ FIREBASE INIT ============
 
 function initFirebase() {
-  const PROJECT_ID = process.env.FIREBASE_PROJECT_ID || 'nutriscan-2c485';
+  const PROJECT_ID = process.env.FIREBASE_PROJECT_ID || 'nutriscan-cloud';
   
   try {
     const serviceAccountPath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH || './firebase-service-account.json';
@@ -54,7 +66,7 @@ function initFirebase() {
       const serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf-8'));
       admin.initializeApp({
         credential: admin.credential.cert(serviceAccount),
-        storageBucket: process.env.FIREBASE_STORAGE_BUCKET || 'nutriscan-2c485.appspot.com'
+        storageBucket: process.env.FIREBASE_STORAGE_BUCKET || 'nutriscan-cloud.firebasestorage.app'
       });
       console.log('[Server] Firebase initialized with service account');
     } else {
@@ -62,7 +74,7 @@ function initFirebase() {
       // (Firebase Admin uses Google's public keys to verify tokens)
       admin.initializeApp({ 
         projectId: PROJECT_ID,
-        storageBucket: process.env.FIREBASE_STORAGE_BUCKET || 'nutriscan-2c485.appspot.com'
+        storageBucket: process.env.FIREBASE_STORAGE_BUCKET || 'nutriscan-cloud.firebasestorage.app'
       });
       console.log(`[Server] Firebase initialized with project ID: ${PROJECT_ID}`);
       console.log('[Server] Note: Firestore writes require a service account. Token verification works.');
@@ -75,8 +87,11 @@ function initFirebase() {
 // ============ FOOD DATA INIT ============
 
 async function initFoodData() {
+  // Check container-local path first, then fallback to Android assets path (dev)
+  const containerLocalPath = path.resolve(__dirname, '..', 'data', 'food_items.json');
+  const androidAssetsPath = path.resolve(__dirname, '../../..', 'app/src/main/assets/food_items.json');
   const foodDataPath = process.env.FOOD_DATA_PATH || 
-    path.resolve(__dirname, '../../..', 'app/src/main/assets/food_items.json');
+    (fs.existsSync(containerLocalPath) ? containerLocalPath : androidAssetsPath);
 
   console.log(`[Server] Loading food data from: ${foodDataPath}`);
 
