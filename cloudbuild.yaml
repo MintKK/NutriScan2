@@ -66,7 +66,7 @@ steps:
       - 'asia-southeast1'
       - '--platform'
       - 'managed'
-      - '--no-allow-unauthenticated'
+      - '--allow-unauthenticated'
 
   # 7. Install Frontend Dependencies
   #    Using 'npm install' to generate a fresh lock file since @tensorflow packages were removed.
