@@ -57,24 +57,38 @@ const authLimiter = rateLimit({
 // ============ FIREBASE INIT ============
 
 function initFirebase() {
+  // TODO: Replace 'nutriscan-cloud' with YOUR Firebase project ID
   const PROJECT_ID = process.env.FIREBASE_PROJECT_ID || 'nutriscan-cloud';
+  const STORAGE_BUCKET = process.env.FIREBASE_STORAGE_BUCKET || `${PROJECT_ID}.firebasestorage.app`;
   
   try {
+    // Priority 1: Service account JSON passed as env var (Cloud Run + Secret Manager)
+    const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+    // Priority 2: Service account file path (local development)
     const serviceAccountPath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH || './firebase-service-account.json';
-    
-    if (fs.existsSync(serviceAccountPath)) {
+
+    if (serviceAccountJson) {
+      // Cloud Run injects the secret JSON directly as an environment variable
+      const serviceAccount = JSON.parse(serviceAccountJson);
+      admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount),
+        storageBucket: STORAGE_BUCKET
+      });
+      console.log('[Server] Firebase initialized with service account (from env var)');
+    } else if (fs.existsSync(serviceAccountPath)) {
+      // Local dev: read from file
       const serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf-8'));
       admin.initializeApp({
         credential: admin.credential.cert(serviceAccount),
-        storageBucket: process.env.FIREBASE_STORAGE_BUCKET || 'nutriscan-cloud.firebasestorage.app'
+        storageBucket: STORAGE_BUCKET
       });
-      console.log('[Server] Firebase initialized with service account');
+      console.log('[Server] Firebase initialized with service account (from file)');
     } else {
-      // Initialize with just project ID — token verification still works
+      // Fallback: initialize with just project ID — token verification still works
       // (Firebase Admin uses Google's public keys to verify tokens)
       admin.initializeApp({ 
         projectId: PROJECT_ID,
-        storageBucket: process.env.FIREBASE_STORAGE_BUCKET || 'nutriscan-cloud.firebasestorage.app'
+        storageBucket: STORAGE_BUCKET
       });
       console.log(`[Server] Firebase initialized with project ID: ${PROJECT_ID}`);
       console.log('[Server] Note: Firestore writes require a service account. Token verification works.');

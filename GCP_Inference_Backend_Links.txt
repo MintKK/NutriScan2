@@ -1,0 +1,3 @@
+Inference: https://nutriscan-inference-245667741854.asia-southeast1.run.app
+
+Backend: https://nutriscan-backend-245667741854.asia-southeast1.run.app
