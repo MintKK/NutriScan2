@@ -69,9 +69,10 @@ steps:
       - '--no-allow-unauthenticated'
 
   # 7. Install Frontend Dependencies
+  #    Using 'npm install' to generate a fresh lock file since @tensorflow packages were removed.
   - name: 'node:20'
     entrypoint: npm
-    args: ['ci', '--legacy-peer-deps']
+    args: ['install']
     dir: 'web/frontend'
 
   # 8. Build Frontend React SPA (inject backend API URL at build time)

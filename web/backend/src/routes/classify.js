@@ -4,12 +4,95 @@
  */
 
 const express = require('express');
+const multer = require('multer');
 const { classifyFood } = require('../services/foodClassifier');
 const { matchClassifications } = require('../services/foodMatchingService');
 const { getSuggestionForFood } = require('../services/aiCoach');
 const { calculatePortionNutrition } = require('../services/nutritionCalculator');
 
 const router = express.Router();
+
+// Multer for image uploads (in-memory)
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const allowed = ['image/jpeg', 'image/png', 'image/webp'];
+    cb(null, allowed.includes(file.mimetype));
+  }
+});
+
+/**
+ * POST /api/classify/image
+ * Accepts an image file upload, sends it to the ML inference service,
+ * then runs the food matching pipeline on the results.
+ * This is the CLOUD version — ML runs on the inference Cloud Run service,
+ * not in the browser.
+ */
+router.post('/image', upload.single('image'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No image file provided' });
+    }
+
+    const foodIndex = req.app.locals.foodIndex;
+    if (!foodIndex) {
+      return res.status(500).json({ error: 'Food index not ready' });
+    }
+
+    // 1. Send image to the ML inference service (or local fallback)
+    const { results, status: mlStatus, message: mlMessage } = await classifyFood(req.file.buffer);
+
+    if (mlStatus === 'ERROR' || mlStatus === 'NO_MODEL') {
+      return res.json({
+        status: mlStatus,
+        message: mlMessage || 'ML inference unavailable. Please use manual food search.',
+        candidates: []
+      });
+    }
+
+    if (results.length === 0) {
+      return res.json({
+        status: 'NO_FOOD_DETECTED',
+        message: 'No food detected in the image. Try a clearer photo or search manually.',
+        candidates: []
+      });
+    }
+
+    // 2. Match ML labels to food database entries
+    const matches = matchClassifications(results, foodIndex);
+    const candidates = matches
+      .filter(m => m.matchedFood)
+      .map(m => ({
+        food: m.matchedFood,
+        matchType: m.matchType,
+        confidence: Math.round(m.confidencePercent),
+        combinedScore: Math.round(m.combinedScore * 100),
+        mlLabel: m.mlLabel,
+        portions: {
+          '100g': calculatePortionNutrition(m.matchedFood, 100),
+          '150g': calculatePortionNutrition(m.matchedFood, 150),
+          '250g (Bowl)': calculatePortionNutrition(m.matchedFood, 250),
+          '500g (Plate)': calculatePortionNutrition(m.matchedFood, 500)
+        },
+        coachTip: getSuggestionForFood(m.matchedFood)
+      }));
+
+    const status = candidates.length > 0
+      ? (candidates[0].confidence >= 70 ? 'HIGH_CONFIDENCE' : 'MULTIPLE_CANDIDATES')
+      : 'NO_FOOD_DETECTED';
+
+    res.json({
+      status,
+      candidateCount: candidates.length,
+      candidates
+    });
+
+  } catch (error) {
+    console.error('[Classify/Image] Error:', error);
+    res.status(500).json({ error: 'Image classification failed', message: error.message });
+  }
+});
 
 /**
  * POST /api/classify

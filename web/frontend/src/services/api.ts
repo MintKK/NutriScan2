@@ -33,6 +33,15 @@ export const authApi = {
 // ============ CLASSIFY ============
 
 export const classifyApi = {
+  // Send image to backend for server-side ML classification (Cloud Run inference)
+  classifyImage: (file: File) => {
+    const formData = new FormData();
+    formData.append('image', file);
+    return api.post('/classify/image', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 60000, // ML inference can take a while on cold starts
+    });
+  },
   classifyResults: (results: { label: string; confidence: number }[]) => 
     api.post('/classify', { results }),
   searchFood: (query: string) => api.get(`/classify/search?q=${encodeURIComponent(query)}`),

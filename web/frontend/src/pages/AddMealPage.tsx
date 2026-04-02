@@ -16,7 +16,7 @@ interface FoodCandidate {
 export default function AddMealPage() {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { isReady, classifyImage: classifyLocal } = useFoodClassifier();
+  const { isClassifying, classifyImage } = useFoodClassifier();
 
   const [step, setStep] = useState<'upload' | 'results' | 'portion' | 'search'>('upload');
   const [classifying, setClassifying] = useState(false);
@@ -32,46 +32,23 @@ export default function AddMealPage() {
   const [logging, setLogging] = useState(false);
   const [classifyMessage, setClassifyMessage] = useState('');
   const [imageUrl, setImageUrl] = useState('');
+  const [currentFile, setCurrentFile] = useState<File | null>(null);
 
   const handleFile = async (file: File) => {
     setPreviewUrl(URL.createObjectURL(file));
+    setCurrentFile(file);
     setClassifying(true);
     setClassifyMessage('');
 
-    if (!isReady) {
-      setClassifyMessage('AI model is still loading, please wait or use search.');
-      setClassifying(false);
-      return;
-    }
-
     try {
-      // Load image into memory for TF.js
-      const img = new Image();
-      img.src = URL.createObjectURL(file);
-      await new Promise((resolve, reject) => {
-        img.onload = resolve;
-        img.onerror = reject;
-      });
+      // Send image to backend → inference service → food matching pipeline
+      const result = await classifyImage(file);
 
-      // 1. Run local ML inference in the browser
-      const mlResults = await classifyLocal(img);
-
-      if (mlResults.length === 0) {
-        setClassifyMessage('No clear food detected by AI. Try searching manually.');
-        setStep('search');
-        setClassifying(false);
-        return;
-      }
-
-      // 2. Map the ML labels to actual food database entries
-      const res = await classifyApi.classifyResults(mlResults);
-      const data = res.data;
-
-      if (data.candidates && data.candidates.length > 0) {
-        setCandidates(data.candidates);
+      if (result.candidates && result.candidates.length > 0) {
+        setCandidates(result.candidates);
         setStep('results');
       } else {
-        setClassifyMessage(data.message || 'No matching food in database. Try searching manually.');
+        setClassifyMessage(result.message || 'No matching food found. Try searching manually.');
         setStep('search');
       }
     } catch (err) {
@@ -91,41 +68,21 @@ export default function AddMealPage() {
     setClassifying(true);
     setClassifyMessage('');
 
-    if (!isReady) {
-      setClassifyMessage('AI model is still loading, please wait or use search.');
-      setClassifying(false);
-      return;
-    }
-
     try {
-      // Use our own backend proxy to bypass CORS restrictions on external images
+      // Fetch the image via our proxy, then send it as a file to the classify endpoint
       const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
       const proxyUrl = `${API_BASE}/api/proxy-image?url=${encodeURIComponent(url)}`;
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
-      img.src = proxyUrl;
-      await new Promise<void>((resolve, reject) => {
-        img.onload = () => resolve();
-        img.onerror = () => reject(new Error('Failed to load image from URL'));
-      });
+      const response = await fetch(proxyUrl);
+      const blob = await response.blob();
+      const file = new File([blob], 'url-image.jpg', { type: blob.type || 'image/jpeg' });
 
-      const mlResults = await classifyLocal(img);
+      const result = await classifyImage(file);
 
-      if (mlResults.length === 0) {
-        setClassifyMessage('No clear food detected by AI. Try searching manually.');
-        setStep('search');
-        setClassifying(false);
-        return;
-      }
-
-      const res = await classifyApi.classifyResults(mlResults);
-      const data = res.data;
-
-      if (data.candidates && data.candidates.length > 0) {
-        setCandidates(data.candidates);
+      if (result.candidates && result.candidates.length > 0) {
+        setCandidates(result.candidates);
         setStep('results');
       } else {
-        setClassifyMessage(data.message || 'No matching food in database. Try searching manually.');
+        setClassifyMessage(result.message || 'No matching food in database. Try searching manually.');
         setStep('search');
       }
     } catch (err) {
