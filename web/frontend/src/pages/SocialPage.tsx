@@ -32,7 +32,7 @@ interface SearchUser {
 
 export default function SocialPage() {
   const { user } = useAuth();
-  const { isReady: classifierReady, classifyImage } = useFoodClassifier();
+  const { isClassifying, classifyImage } = useFoodClassifier();
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [commentText, setCommentText] = useState<Record<string, string>>({});
@@ -80,19 +80,9 @@ export default function SocialPage() {
     }
   };
 
-  // Shared helper to run classification on a loaded HTMLImageElement
-  const runClassification = async (img: HTMLImageElement) => {
-    const mlResults = await classifyImage(img);
-
-    if (mlResults.length === 0) {
-      setClassifyMessage('No food detected. Fill in details manually.');
-      setClassifying(false);
-      return;
-    }
-
-    const res = await classifyApi.classifyResults(mlResults);
-    const candidates = res.data.candidates || [];
-
+  // Shared helper to process classification results
+  const applyClassificationResult = (result: any) => {
+    const candidates = result.candidates || [];
     if (candidates.length > 0) {
       const top = candidates[0];
       const kcalPer100 = Math.round(top.food.kcalPer100g);
@@ -111,7 +101,7 @@ export default function SocialPage() {
       }));
       setClassifyMessage(`Detected: ${top.food.name} (${top.confidence}% confidence) — adjust weight below`);
     } else {
-      setClassifyMessage('No food match found. Fill in details manually.');
+      setClassifyMessage(result.message || 'No food match found. Fill in details manually.');
     }
   };
 
@@ -119,25 +109,15 @@ export default function SocialPage() {
     if (!file.type.startsWith('image/')) return;
     setImageFile(file);
     setImageUrl('');
-    const previewUrl = URL.createObjectURL(file);
-    setImagePreview(previewUrl);
+    setImagePreview(URL.createObjectURL(file));
     setClassifyMessage('');
-
-    if (!classifierReady) {
-      setClassifyMessage('AI model is still loading...');
-      return;
-    }
 
     setClassifying(true);
     setClassifyMessage('Analyzing food...');
     try {
-      const img = new Image();
-      img.src = previewUrl;
-      await new Promise<void>((resolve, reject) => {
-        img.onload = () => resolve();
-        img.onerror = () => reject(new Error('Failed to load image'));
-      });
-      await runClassification(img);
+      // Send image to backend → inference service → food matching pipeline
+      const result = await classifyImage(file);
+      applyClassificationResult(result);
     } catch (err) {
       console.error('Classification error:', err);
       setClassifyMessage('Classification failed. Fill in details manually.');
@@ -155,24 +135,18 @@ export default function SocialPage() {
     setNewPost(prev => ({ ...prev, foodImageUrl: url }));
     setClassifyMessage('');
 
-    if (!classifierReady) {
-      setClassifyMessage('AI model is still loading. Fill in details manually.');
-      return;
-    }
-
     setClassifying(true);
     setClassifyMessage('Analyzing food...');
     try {
+      // Fetch the image via our proxy, then send as file to classify endpoint
       const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
       const proxyUrl = `${API_BASE}/api/proxy-image?url=${encodeURIComponent(url)}`;
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
-      img.src = proxyUrl;
-      await new Promise<void>((resolve, reject) => {
-        img.onload = () => resolve();
-        img.onerror = () => reject(new Error('Failed to load image from URL'));
-      });
-      await runClassification(img);
+      const response = await fetch(proxyUrl);
+      const blob = await response.blob();
+      const file = new File([blob], 'url-image.jpg', { type: blob.type || 'image/jpeg' });
+
+      const result = await classifyImage(file);
+      applyClassificationResult(result);
     } catch (err) {
       console.error('URL classification error:', err);
       setClassifyMessage('Could not load image from URL. Check the link or try uploading instead.');
