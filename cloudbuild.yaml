@@ -83,7 +83,9 @@ steps:
       - 'VITE_API_URL=${_VITE_API_URL}'
 
   # 9. Deploy Frontend to Firebase Hosting
-  - name: 'gcr.io/$PROJECT_ID/firebase'
+  #    Uses the official Firebase CLI image — no custom builder needed.
+  #    Requires Cloud Build service account to have "Firebase Admin" + "API Keys Viewer" roles.
+  - name: 'us-docker.pkg.dev/firebase-cli/us/firebase'
     args: ['deploy', '--only', 'hosting', '--project', '$PROJECT_ID']
     dir: 'web/frontend'
 
@@ -91,6 +93,10 @@ images:
   - 'asia-southeast1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/nutriscan-backend'
   - 'asia-southeast1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/nutriscan-inference'
 
+# Required when using a user-managed service account (not the legacy Cloud Build SA).
+# CLOUD_LOGGING_ONLY sends build logs to Cloud Logging without needing a storage bucket.
+options:
+  logging: CLOUD_LOGGING_ONLY
 # Substitution variables — set these in the Cloud Build Trigger configuration
 # or override via --substitutions flag when running manually.
 substitutions:
