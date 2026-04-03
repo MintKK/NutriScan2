@@ -40,7 +40,7 @@ MIN_CONFIDENCE = 0.05
 def process_image(img):
     """Resize image to 192x192 and convert to INT32 tensor"""
     img = img.resize((192, 192)).convert('RGB')
-    input_data = np.expand_dims(img, axis=0).astype(np.int32)
+    input_data = np.expand_dims(img, axis=0).astype(np.uint8)
     return input_data
 
 def softmax(x):

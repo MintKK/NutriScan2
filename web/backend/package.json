@@ -9,6 +9,7 @@
     "test": "jest --verbose"
   },
   "dependencies": {
+    "@google-cloud/firestore": "^8.3.0",
     "@tensorflow/tfjs": "^4.22.0",
     "@tensorflow/tfjs-backend-cpu": "^4.22.0",
     "@tensorflow/tfjs-backend-wasm": "^4.22.0",
