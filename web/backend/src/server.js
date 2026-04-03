@@ -156,13 +156,27 @@ app.use('/api/upload', uploadRoutes);
 app.use('/api/proxy-image', proxyImageRoutes);
 
 // Health check
-app.get('/api/health', (req, res) => {
-  res.json({
+app.get('/api/health', async (req, res) => {
+  const healthData = {
     status: 'ok',
     service: 'NutriScan Cloud API',
     foodIndexReady: !!app.locals.foodIndex,
+    inferenceServiceUrl: process.env.INFERENCE_SERVICE_URL || 'NOT SET',
     timestamp: new Date().toISOString()
-  });
+  };
+
+  // Check inference service connectivity
+  if (process.env.INFERENCE_SERVICE_URL) {
+    try {
+      const inferenceRes = await fetch(`${process.env.INFERENCE_SERVICE_URL}/health`);
+      const inferenceData = await inferenceRes.json();
+      healthData.inferenceService = { status: 'reachable', ...inferenceData };
+    } catch (err) {
+      healthData.inferenceService = { status: 'unreachable', error: err.message };
+    }
+  }
+
+  res.json(healthData);
 });
 
 // ============ START ============

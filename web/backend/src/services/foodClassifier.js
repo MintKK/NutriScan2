@@ -146,10 +146,14 @@ async function classifyFood(imageBuffer) {
     if (process.env.INFERENCE_SERVICE_URL) {
       try {
         const formData = new FormData();
-        const blob = new Blob([imageBuffer], { type: 'image/jpeg' });
-        formData.append('image', blob, 'image.jpg');
+        // Use File instead of Blob — more reliable for multipart uploads in Node.js 20
+        const file = new File([imageBuffer], 'image.jpg', { type: 'image/jpeg' });
+        formData.append('image', file);
 
-        const response = await fetch(`${process.env.INFERENCE_SERVICE_URL}/predict`, {
+        const inferenceUrl = `${process.env.INFERENCE_SERVICE_URL}/predict`;
+        console.log(`[FoodClassifier] Calling inference service: ${inferenceUrl} (${imageBuffer.length} bytes)`);
+
+        const response = await fetch(inferenceUrl, {
           method: 'POST',
           body: formData,
         });
@@ -157,6 +161,7 @@ async function classifyFood(imageBuffer) {
         if (response.ok) {
           const data = await response.json();
           const results = data.results || [];
+          console.log(`[FoodClassifier] Inference returned ${results.length} results`);
           if (results.length === 0) return { results: [], status: 'NO_FOOD_DETECTED' };
           
           const status = results[0].confidence >= HIGH_CONFIDENCE
@@ -165,10 +170,22 @@ async function classifyFood(imageBuffer) {
             
           return { results, status };
         } else {
-          console.warn(`[FoodClassifier] Inference Service returned ${response.status}. Falling back if possible.`);
+          // Log the actual error body for debugging
+          const errBody = await response.text().catch(() => 'no body');
+          console.error(`[FoodClassifier] Inference Service returned ${response.status}: ${errBody}`);
+          return {
+            results: [],
+            status: 'ERROR',
+            message: `Inference service error (${response.status}). Please use manual food search.`
+          };
         }
       } catch (err) {
-        console.error('[FoodClassifier] Failed to reach Inference Service:', err.message);
+        console.error('[FoodClassifier] Failed to reach Inference Service:', err.message, err.stack);
+        return {
+          results: [],
+          status: 'ERROR',
+          message: 'Could not reach ML service. Please use manual food search.'
+        };
       }
     }
 
