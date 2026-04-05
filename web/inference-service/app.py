@@ -40,12 +40,10 @@ MIN_CONFIDENCE = 0.05
 def process_image(img):
     """Resize image to 192x192 and convert to INT32 tensor"""
     img = img.resize((192, 192)).convert('RGB')
-    input_data = np.expand_dims(img, axis=0).astype(np.int32)
+    input_data = np.expand_dims(img, axis=0).astype(np.uint8)
     return input_data
 
-def softmax(x):
-    e_x = np.exp(x - np.max(x))
-    return e_x / e_x.sum()
+
 
 @app.route('/predict', methods=['POST'])
 def predict():
@@ -63,11 +61,18 @@ def predict():
         # Inference
         interpreter.set_tensor(input_details[0]['index'], input_data)
         interpreter.invoke()
+        # Dequantize the output if it's uint8
         output_data = interpreter.get_tensor(output_details[0]['index'])
-        
-        # Softmax and parse
         scores = output_data[0]
-        probs = softmax(scores)
+        
+        if output_details[0]['dtype'] == np.uint8:
+            scale, zero_point = output_details[0].get('quantization', (0.0, 0))
+            if scale and scale > 0:
+                probs = (scores.astype(float) - zero_point) * scale
+            else:
+                probs = scores.astype(float) / 255.0
+        else:
+            probs = scores.astype(float)
         
         results = []
         for i, conf in enumerate(probs):

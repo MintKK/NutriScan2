@@ -62,13 +62,17 @@ router.get('/', (req, res) => {
   });
 
   proxyReq.on('error', () => {
-    res.status(502).json({ error: 'Failed to fetch image from URL' });
+    if (!res.headersSent) {
+      res.status(502).json({ error: 'Failed to fetch image from URL' });
+    }
   });
 
   // 10 second timeout
   proxyReq.setTimeout(10000, () => {
     proxyReq.destroy();
-    res.status(504).json({ error: 'Image fetch timed out' });
+    if (!res.headersSent) {
+      res.status(504).json({ error: 'Image fetch timed out' });
+    }
   });
 });
 
